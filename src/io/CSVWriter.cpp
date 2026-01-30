@@ -1,4 +1,5 @@
 #include "CSVWriter.h"
+#include "utils/StringConverter.h"
 #include <fstream>
 #include <stdexcept>
 
@@ -11,26 +12,21 @@ CSVWriter::CSVWriter(const std::string &filename, char sep)
 }
 
 void CSVWriter::WriteRaw(const Raw &raw) {
+    StringConverter converter;
+
     for (size_t i = 0; i < raw.size(); ++i) {
         auto str = raw[i];
 
-        os_ << '"';
-        for (auto &x : str) {
-            if (x == '"') {
-                os_ << x;
-            }
-            os_ << x;
-        }
-        os_ << '"';
+        converter.WriteString(os_, str);
 
         if (i != raw.size() - 1) {
-            os_ << sep_;
+            os_.write(&sep_, 1);
         }
     }
 
-    os_ << '\n';
+    char n = '\n';
 
-    os_.flush();
+    os_.write(&n, 1);
 }
 
 CSVWriter::~CSVWriter() { os_.close(); }

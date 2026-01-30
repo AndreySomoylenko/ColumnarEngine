@@ -1,6 +1,7 @@
 #include "CSVReader.h"
+#include "utils/StringConverter.h"
+#include <cstdio>
 #include <fstream>
-#include <iostream>
 #include <stdexcept>
 
 CSVReader::CSVReader(const std::string &filename, char sep)
@@ -12,53 +13,20 @@ CSVReader::CSVReader(const std::string &filename, char sep)
 }
 
 Raw CSVReader::ReadNext() {
+    StringConverter converter;
+
     Raw result;
-    std::string raw;
-    bool is_string = false;
-    std::string cur;
 
-    while ((is_string || is_.peek() != '\n') && is_.peek() != EOF) {
-        char x = static_cast<char>(is_.get());
-
-        if (x == '"') {
-            if (is_string) {
-                if (is_.peek() == '"') {
-                    cur += x;
-                    is_.get();
-                } else {
-                    if (is_.peek() != '\n' && is_.peek() != EOF && is_.peek() != sep_) {
-                        std::cout << char(is_.peek()) << std::endl;
-                        throw std::runtime_error("Invalid CSV");
-                    }
-
-                    is_string = false;
-                }
-            } else {
-                is_string = true;
-            }
-
-            continue;
+    while (is_.peek() != '\n' && is_.peek() != EOF) {
+        result.emplace_back(converter.ReadNextString(is_, {sep_, '\n', EOF}));
+        if (is_.peek() == '\n' || is_.peek() == EOF) {
+            break;
         }
 
-        if (x == sep_) {
-            if (is_string) {
-                cur += x;
-            } else {
-                result.emplace_back(cur);
-                cur = "";
-            }
-        } else {
-            cur += x;
-        }
+        is_.get();
     }
 
     is_.get();
-
-    result.emplace_back(cur);
-
-    if (is_string) {
-        throw std::runtime_error("Very bad input");
-    }
 
     return result;
 }

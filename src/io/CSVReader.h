@@ -1,3 +1,5 @@
+#pragma once
+
 #include <fstream>
 #include <string>
 #include <vector>
@@ -6,7 +8,7 @@ using Raw = std::vector<std::string>;
 
 class CSVReader {
 public:
-    CSVReader(const std::string &filename, char sep = ';');
+    CSVReader(const std::string &filename, char sep = ',');
 
     Raw ReadNext();
     bool IsEnd();

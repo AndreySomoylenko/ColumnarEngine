@@ -1,3 +1,4 @@
 add_subdirectory(io)
 add_subdirectory(core)
-add_subdirectory(data_sructures)
+add_subdirectory(data_structures)
+add_subdirectory(utils)

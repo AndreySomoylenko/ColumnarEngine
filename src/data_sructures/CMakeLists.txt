@@ -1,1 +1,0 @@
-add_library(columnar_data_structures INTERFACE)
