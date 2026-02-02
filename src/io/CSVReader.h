@@ -1,5 +1,6 @@
 #pragma once
 
+#include "utils/StringConverter.h"
 #include <fstream>
 #include <string>
 #include <vector>
@@ -10,12 +11,19 @@ class CSVReader {
 public:
     CSVReader(const std::string &filename, char sep = ',');
 
-    Raw ReadNext();
+    void ReadNext(Raw &raw);
     bool IsEnd();
 
     ~CSVReader();
 
 private:
+    StringConverter converter_;
     std::ifstream is_;
     char sep_;
+
+    std::string cur_string_;
+
+    std::vector<char> buffer_;
+
+    std::string tmp_;
 };
