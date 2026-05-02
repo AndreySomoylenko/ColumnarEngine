@@ -25,7 +25,8 @@ target_link_libraries(columnar_tests
         columnar_io          
         columnar_data_structures 
         columnar_operations
-        columnar_utils          
+        columnar_utils   
+        columnar_operations    
 )
 
 target_include_directories(columnar_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)

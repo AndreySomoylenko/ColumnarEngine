@@ -77,3 +77,5 @@ ByteVector &ByteVector::operator=(ByteVector &&other) {
 
     return *this;
 }
+
+ByteVector::~ByteVector() { free(data_); }

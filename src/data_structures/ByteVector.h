@@ -13,6 +13,7 @@ public:
 
     ByteVector(ByteVector &&);
     ByteVector &operator=(ByteVector &&);
+    ~ByteVector();
 
     size_t Size() const;
     size_t SizeInBytes() const;
