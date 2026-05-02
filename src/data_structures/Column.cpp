@@ -1,23 +1,19 @@
 #include "Column.h"
-#include "utils/StringConverter.h"
 #include <cstddef>
 #include <stdexcept>
 #include <string>
 
-size_t Int64Column::Size() { return data_.size(); }
-size_t StringColumn::Size() { return data_.size(); }
+size_t Int64Column::Size() { return data_.Size(); }
+size_t StringColumn::Size() { return data_.Size(); }
 
-char *Int64Column::Data() { return reinterpret_cast<char *>(data_.data()); }
-char *StringColumn::Data() { return reinterpret_cast<char *>(data_.data()); }
-
-size_t Int64Column::Push(const std::string &s) {
-    data_.emplace_back(std::stoll(s));
-    return 8;
+void Int64Column::Push(const std::string &s) {
+    int64_t result = std::stoll(s);
+    data_.Push(&result, ElemSize);
 }
 
-size_t StringColumn::Push(const std::string &s) {
-    data_.emplace_back(s);
-    return s.size();
+void StringColumn::Push(const std::string &s) {
+    offsets_.emplace_back(data_.SizeInBytes());
+    data_.Push(s.data(), s.size());
 }
 
 std::string Int64Column::ToString(const size_t index) {
@@ -25,7 +21,7 @@ std::string Int64Column::ToString(const size_t index) {
         throw std::invalid_argument("Too big index");
     }
 
-    return std::to_string(data_[index]);
+    return std::to_string(*reinterpret_cast<const int64_t *>(data_.Data() + index * ElemSize));
 };
 
 std::string StringColumn::ToString(const size_t index) {
@@ -33,18 +29,35 @@ std::string StringColumn::ToString(const size_t index) {
         throw std::invalid_argument("Too big index");
     }
 
-    return data_[index];
+    const size_t start = offsets_[index];
+    const size_t end = index + 1 < offsets_.size() ? offsets_[index + 1] : data_.SizeInBytes();
+    return std::string(data_.Data() + start, end - start);
 }
 
-void Int64Column::Clear() { data_.clear(); }
-void StringColumn::Clear() { data_.clear(); }
-
-std::pair<char *, size_t> Int64Column::ToWrite(const size_t index) {
-    return {reinterpret_cast<char *>(&data_[index]), 8};
+void Int64Column::Clear() { data_.Clear(); }
+void StringColumn::Clear() {
+    data_.Clear();
+    offsets_.clear();
 }
 
-std::pair<char *, size_t> StringColumn::ToWrite(const size_t index) {
-    StringConverter converter;
-    cache_ = converter.TransformStringToFilestring(data_[index]);
-    return {cache_.data(), cache_.size()};
+std::pair<const char *, size_t> Int64Column::ToWrite() { return {data_.Data(), data_.SizeInBytes()}; }
+
+std::pair<const char *, size_t> StringColumn::ToWrite() { return {data_.Data(), data_.SizeInBytes()}; }
+
+StringColumn::StringColumn(const size_t sz) { data_.Reserve(sz * 100); }
+Int64Column::Int64Column(const size_t sz) { data_.Reserve(sz, 8); }
+
+ColumnTypes StringColumn::GetColumnType() const { return ColumnTypes::String; }
+ColumnTypes Int64Column::GetColumnType() const { return ColumnTypes::Int64; }
+
+Int64Column::Int64Column(ByteVector &&data) { data_ = std::move(data); }
+StringColumn::StringColumn(ByteVector &&data, std::vector<size_t> &&offsets) {
+    data_ = std::move(data);
+    offsets_ = std::move(offsets);
+}
+
+const std::vector<size_t> &StringColumn::GetOffsets() const { return offsets_; }
+
+const std::vector<size_t> &Int64Column::GetOffsets() const {
+    throw std::logic_error("Int64 column doesn't have offsets");
 }

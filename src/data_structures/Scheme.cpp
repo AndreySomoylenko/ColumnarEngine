@@ -4,7 +4,7 @@
 #include <vector>
 
 void Scheme::Add(const Raw &str) {
-    if (str.size() != 2) {
+    if (str.size() < 2) {
         throw std::invalid_argument("Incorrect scheme");
     }
 
@@ -19,11 +19,11 @@ void Scheme::Add(const Raw &str) {
     column_names.emplace_back(str[0]);
 }
 
-const std::vector<std::string> Scheme::GetSchemeNames() const { return column_names; }
+const std::vector<std::string> &Scheme::GetSchemeNames() const { return column_names; }
 
-const std::vector<ColumnTypes> Scheme::GetSchemeTypes() const { return column_types; }
+const std::vector<ColumnTypes> &Scheme::GetSchemeTypes() const { return column_types; }
 
-std::vector<Raw> Scheme::GiveRaws() {
+std::vector<Raw> Scheme::GiveRaws() const {
     std::vector<Raw> result;
     result.reserve(column_names.size());
 

@@ -5,14 +5,17 @@
 #include "io/CSVWriter.h"
 #include "io/ColumnarReader.h"
 #include "io/ColumnarWriter.h"
+#include <filesystem>
 
 Engine::Engine(const Filename &data, const Filename &scheme, const Filename &columnar) {
     CSVReader scheme_reader(scheme);
 
     Scheme t_scheme;
 
+    Raw cur;
+
     while (!scheme_reader.IsEnd()) {
-        auto cur = scheme_reader.ReadNext();
+        scheme_reader.ReadNext(cur);
         if (cur.empty()) {
             continue;
         }
@@ -25,11 +28,17 @@ Engine::Engine(const Filename &data, const Filename &scheme, const Filename &col
 
     ColumnarWriter writer(columnar);
 
+    cur.reserve(4096);
+
     while (!data_reader.IsEnd()) {
-        auto cur = data_reader.ReadNext();
+        cur.clear();
+
+        data_reader.ReadNext(cur);
+
         if (cur.empty()) {
             continue;
         }
+
         if (!tmp.EnableToPush()) {
             writer.WriteChunk(tmp);
             tmp.Clear();
@@ -51,8 +60,12 @@ Engine::Engine(const Filename &columnar)
     : reader_(columnar) {}
 
 void Engine::TakeAll(const Filename &result_name) {
+    const std::filesystem::path result_path(result_name);
+    const std::filesystem::path scheme_path =
+        result_path.parent_path() / ("scheme_" + result_path.filename().string());
+
     CSVWriter data_writer(result_name);
-    CSVWriter scheme_writer("scheme_" + result_name);
+    CSVWriter scheme_writer(scheme_path.string());
 
     reader_.Reset();
 
@@ -64,7 +77,7 @@ void Engine::TakeAll(const Filename &result_name) {
         }
     }
 
-    Scheme cur = reader_.GetScheme();
+    const Scheme &cur = reader_.GetScheme();
 
     auto to_write = cur.GiveRaws();
 

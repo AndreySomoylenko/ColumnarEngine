@@ -4,7 +4,8 @@
 #include <vector>
 
 struct MetaData {
-    std::vector<uint64_t> chunk_metas;
+    std::vector<std::streampos> chunk_metas;
     Scheme scheme;
     size_t column_numbers = 0;
+    std::streampos meta_section_start = 0;
 };

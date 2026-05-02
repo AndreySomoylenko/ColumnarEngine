@@ -15,7 +15,7 @@ private:
 
 public:
     void Add(const Raw &str);
-    const std::vector<std::string> GetSchemeNames() const;
-    const std::vector<ColumnTypes> GetSchemeTypes() const;
-    std::vector<Raw> GiveRaws();
+    const std::vector<std::string>& GetSchemeNames() const;
+    const std::vector<ColumnTypes>& GetSchemeTypes() const;
+    std::vector<Raw> GiveRaws() const;
 };

@@ -12,6 +12,11 @@ target_include_directories(sandbox_app PRIVATE
     ${CMAKE_SOURCE_DIR}/src/utils
 )
 
+target_compile_definitions(sandbox_app
+    PRIVATE
+        COLUMNAR_TEST_FIXTURES_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures"
+)
+
 target_link_libraries(sandbox_app PRIVATE 
     columnar_core 
     columnar_io 

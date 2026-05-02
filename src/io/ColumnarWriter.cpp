@@ -4,38 +4,34 @@
 #include <ios>
 #include <stdexcept>
 
-ColumnarWriter::ColumnarWriter(const std::string &filename)
-    : os_(filename, std::ios::binary | std::ios::out) {
+ColumnarWriter::ColumnarWriter(const std::string &filename) {
+    os_.rdbuf()->pubsetbuf(io_buffer_.data(), static_cast<std::streamsize>(io_buffer_.size()));
+    os_.open(filename, std::ios::binary | std::ios::out);
+
     if (!os_.good()) {
         throw std::runtime_error("Can't create columnar file");
     }
 
-    char *semicon = new char(';');
-
-    uint64_t meta_offset = os_.tellp();
-    os_.write(reinterpret_cast<char *>(&meta_offset), sizeof(meta_offset));
-    os_.write(semicon, 1);
+    std::streampos meta_offset = os_.tellp();
+    std::streamoff meta_off = meta_offset;
+    os_.write(reinterpret_cast<char *>(&meta_off), sizeof(meta_off));
 }
 
 void ColumnarWriter::WriteChunk(const Butch &butch) {
-    char coma = ',';
-    char semicon = ';';
-
-    std::vector<uint64_t> columns_starts;
+    std::vector<std::streampos> columns_starts;
 
     columns_starts.emplace_back(os_.tellp());
     for (auto &x : butch.GetColumns()) {
-        for (size_t i = 0; i < butch.VerticalSize(); ++i) {
+        auto [data, sz] = x->ToWrite();
 
-            auto to_write = x->ToWrite(i);
-
-            os_.write(to_write.first, to_write.second);
-
-            if (i != butch.VerticalSize() - 1) {
-                os_.write(&coma, 1);
-            } else {
-                os_.write(&semicon, 1);
-            }
+        if (x->GetColumnType() == ColumnTypes::String) {
+            os_.write(reinterpret_cast<const char *>(&sz), sizeof(sz));
+            os_.write(data, sz);
+            size_t offsets_sz = x->GetOffsets().size() * sizeof(size_t);
+            os_.write(reinterpret_cast<const char *>(&offsets_sz), sizeof(offsets_sz));
+            os_.write(reinterpret_cast<const char *>(x->GetOffsets().data()), x->GetOffsets().size() * sizeof(size_t));
+        } else {
+            os_.write(data, sz);
         }
         columns_starts.emplace_back(os_.tellp());
     }
@@ -45,34 +41,19 @@ void ColumnarWriter::WriteChunk(const Butch &butch) {
     chunk_starts.emplace_back(os_.tellp());
 
     for (size_t i = 0; i < columns_starts.size(); ++i) {
-        uint64_t to_write = static_cast<uint64_t>(columns_starts[i]);
-        os_.write(reinterpret_cast<char *>(&to_write), sizeof(to_write));
-
-        if (i != columns_starts.size() - 1) {
-            os_.write(&coma, 1);
-        } else {
-            os_.write(&semicon, 1);
-        }
+        std::streamoff off = columns_starts[i];
+        os_.write(reinterpret_cast<char *>(&off), sizeof(off));
     }
 }
 
 void ColumnarWriter::Close(const Scheme &scheme) {
-    char coma = ',';
-    char semicon = ';';
     auto meta_start = os_.tellp();
+    size_t chunk_count = chunk_starts.size();
+
+    os_.write(reinterpret_cast<char *>(&chunk_count), sizeof(chunk_count));
     for (size_t i = 0; i < chunk_starts.size(); ++i) {
-        uint64_t to_write = static_cast<uint64_t>(chunk_starts[i]);
+        std::streamoff to_write = chunk_starts[i];
         os_.write(reinterpret_cast<char *>(&to_write), sizeof(to_write));
-
-        if (i != chunk_starts.size() - 1) {
-            os_.write(&coma, 1);
-        } else {
-            os_.write(&semicon, 1);
-        }
-    }
-
-    if (chunk_starts.size() == 0) {
-        os_.write(&semicon, 1);
     }
 
     auto names = scheme.GetSchemeNames();
@@ -82,26 +63,29 @@ void ColumnarWriter::Close(const Scheme &scheme) {
     std::string str = "string";
     std::string unknown = "unknown";
 
+    size_t int64_sz = int64.size();
+    size_t str_sz = str.size();
+    size_t unknown_sz = unknown.size();
+
     for (size_t i = 0; i < names.size(); ++i) {
+        size_t name_sz = names[i].size();
+        os_.write(reinterpret_cast<char *>(&name_sz), sizeof(name_sz));
         os_.write(names[i].data(), names[i].size());
 
-        os_.write(&coma, 1);
-
         if (types[i] == ColumnTypes::Int64) {
+            os_.write(reinterpret_cast<char *>(&int64_sz), sizeof(int64_sz));
             os_.write(int64.data(), int64.size());
         } else if (types[i] == ColumnTypes::String) {
+            os_.write(reinterpret_cast<char *>(&str_sz), sizeof(str_sz));
             os_.write(str.data(), str.size());
         } else {
+            os_.write(reinterpret_cast<char *>(&unknown_sz), sizeof(unknown_sz));
             os_.write(unknown.data(), unknown.size());
-        }
-
-        if (i != names.size() - 1) {
-            os_.write(&semicon, 1);
         }
     }
 
     os_.seekp(0, std::ios::beg);
-    uint64_t to_write = static_cast<uint64_t>(meta_start);
+    std::streamoff to_write = meta_start;
     os_.write(reinterpret_cast<char *>(&to_write), sizeof(to_write));
 
     os_.close();

@@ -3,6 +3,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <array>
 
 using Raw = std::vector<std::string>;
 
@@ -17,4 +18,6 @@ public:
 private:
     std::ofstream os_;
     char sep_;
+    static constexpr std::size_t kIOBufferSize = 1 << 20;
+    std::array<char, kIOBufferSize> io_buffer_;
 };

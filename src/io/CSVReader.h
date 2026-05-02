@@ -1,6 +1,6 @@
 #pragma once
 
-#include "utils/StringConverter.h"
+#include <array>
 #include <fstream>
 #include <string>
 #include <vector>
@@ -17,13 +17,14 @@ public:
     ~CSVReader();
 
 private:
-    StringConverter converter_;
     std::ifstream is_;
     char sep_;
 
     std::string cur_string_;
 
-    std::vector<char> buffer_;
-
     std::string tmp_;
+
+
+    static constexpr std::size_t kIOBufferSize = 1 << 20;
+    std::array<char, kIOBufferSize> io_buffer_;
 };

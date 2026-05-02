@@ -3,3 +3,6 @@ build
 compile_commands*.json
 format.sh
 .clang-format
+*.csv
+.DS_Store
+benchmark.sh

@@ -5,6 +5,7 @@
 #include "data_structures/Scheme.h"
 
 #include <fstream>
+#include <array>
 
 class ColumnarReader {
 public:
@@ -15,7 +16,7 @@ public:
     void Reset();
     bool IsEnd();
 
-    Scheme GetScheme();
+    const Scheme &GetScheme() const;
 
     ~ColumnarReader();
 
@@ -23,7 +24,7 @@ private:
     std::ifstream is_;
     size_t cur_butch_;
 
-    std::string Unpack(const std::string &from_file, const size_t index);
-
     MetaData data_;
+    static constexpr std::size_t kIOBufferSize = 1 << 20;
+    std::array<char, kIOBufferSize> io_buffer_;
 };

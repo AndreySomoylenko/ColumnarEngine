@@ -5,7 +5,9 @@
 
 CSVWriter::CSVWriter(const std::string &filename, char sep)
     : sep_(sep) {
-    os_ = std::ofstream(filename);
+    os_.rdbuf()->pubsetbuf(io_buffer_.data(), static_cast<std::streamsize>(io_buffer_.size()));
+    os_.open(filename, std::ios::binary | std::ios::out);
+
     if (!os_.good()) {
         throw std::invalid_argument("I cannot create file!");
     }
@@ -15,9 +17,7 @@ void CSVWriter::WriteRaw(const Raw &raw) {
     StringConverter converter;
 
     for (size_t i = 0; i < raw.size(); ++i) {
-        auto str = raw[i];
-
-        converter.WriteString(os_, str);
+        converter.WriteString(os_, raw[i]);
 
         if (i != raw.size() - 1) {
             os_.write(&sep_, 1);
