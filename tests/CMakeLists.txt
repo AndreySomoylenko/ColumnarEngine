@@ -14,6 +14,7 @@ add_executable(columnar_tests
     data_structures/test_columns_scheme_butch.cpp
     io/test_columnar_io.cpp
     io/test_csv_io.cpp
+    operations/test_aggregations.cpp
     utils/test_string_converter.cpp
 )
 
@@ -23,6 +24,7 @@ target_link_libraries(columnar_tests
         columnar_core     
         columnar_io          
         columnar_data_structures 
+        columnar_operations
         columnar_utils          
 )
 

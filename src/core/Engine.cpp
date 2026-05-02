@@ -61,8 +61,7 @@ Engine::Engine(const Filename &columnar)
 
 void Engine::TakeAll(const Filename &result_name) {
     const std::filesystem::path result_path(result_name);
-    const std::filesystem::path scheme_path =
-        result_path.parent_path() / ("scheme_" + result_path.filename().string());
+    const std::filesystem::path scheme_path = result_path.parent_path() / ("scheme_" + result_path.filename().string());
 
     CSVWriter data_writer(result_name);
     CSVWriter scheme_writer(scheme_path.string());

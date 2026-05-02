@@ -13,7 +13,6 @@ ByteVector::ByteVector(size_t size, size_t size_in_bytes, void *buf) noexcept
     , size_in_bytes_(size_in_bytes)
     , data_(buf) {}
 
-
 void ByteVector::ReAllocate(size_t new_cap) {
     void *new_buf = realloc(data_, new_cap);
     capasity_ = new_cap;

@@ -6,13 +6,14 @@
 #include <string>
 #include <vector>
 
-enum ColumnTypes { Int64, String, Unknown };
+enum ColumnTypes { Int64, String, Unknown, Timestamp };
 
 class Column : public std::enable_shared_from_this<Column> {
 public:
-    virtual size_t Size() = 0;
+    virtual size_t Size() const = 0;
     virtual void Push(const std::string &s) = 0;
     virtual std::string ToString(const size_t index) = 0;
+    virtual std::variant<const char *, std::pair<const char *, size_t>> Get(size_t index) const = 0;
     virtual void Clear() = 0;
 
     virtual std::pair<const char *, size_t> ToWrite() = 0;
@@ -34,10 +35,11 @@ public:
 
     Int64Column(ByteVector &&data);
 
-    size_t Size() override;
+    size_t Size() const override;
     void Push(const std::string &s) override;
     std::string ToString(const size_t index) override;
     void Clear() override;
+    std::variant<const char *, std::pair<const char *, size_t>> Get(size_t index) const override;
 
     std::pair<const char *, size_t> ToWrite() override;
 
@@ -56,9 +58,10 @@ public:
 
     StringColumn(ByteVector &&data, std::vector<size_t> &&offsets);
 
-    size_t Size() override;
+    size_t Size() const override;
     void Push(const std::string &s) override;
     std::string ToString(const size_t index) override;
+    std::variant<const char *, std::pair<const char *, size_t>> Get(size_t index) const override;
     void Clear() override;
 
     std::pair<const char *, size_t> ToWrite() override;
@@ -69,4 +72,26 @@ public:
 
 private:
     std::vector<size_t> offsets_;
+};
+
+class TimeColumn : public Column {
+public:
+    TimeColumn() = default;
+    TimeColumn(const size_t sz);
+
+    TimeColumn(ByteVector &&data);
+    size_t Size() const override;
+    void Push(const std::string &s) override;
+    std::string ToString(const size_t index) override;
+    std::variant<const char *, std::pair<const char *, size_t>> Get(size_t index) const override;
+    void Clear() override;
+
+    std::pair<const char *, size_t> ToWrite() override;
+
+    ColumnTypes GetColumnType() const override;
+
+    const std::vector<size_t> &GetOffsets() const override;
+
+private:
+    static constexpr size_t ElemSize = sizeof(std::chrono::system_clock::time_point);
 };

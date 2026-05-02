@@ -1,9 +1,9 @@
 #pragma once
 
 #include "data_structures/Butch.h"
+#include <array>
 #include <fstream>
 #include <vector>
-#include <array>
 
 class ColumnarWriter {
 public:

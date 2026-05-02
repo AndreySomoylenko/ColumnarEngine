@@ -88,10 +88,6 @@ void CSVReader::ReadNext(Raw &result) {
     cur_string_.clear();
 }
 
-bool CSVReader::IsEnd() {
-    return !is_ || is_.peek() == EOF;
-}
+bool CSVReader::IsEnd() { return !is_ || is_.peek() == EOF; }
 
-CSVReader::~CSVReader() {
-    is_.close();
-}
+CSVReader::~CSVReader() { is_.close(); }

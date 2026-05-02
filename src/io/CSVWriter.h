@@ -1,9 +1,9 @@
 #pragma once
 
+#include <array>
 #include <fstream>
 #include <string>
 #include <vector>
-#include <array>
 
 using Raw = std::vector<std::string>;
 

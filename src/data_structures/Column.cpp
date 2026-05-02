@@ -3,8 +3,8 @@
 #include <stdexcept>
 #include <string>
 
-size_t Int64Column::Size() { return data_.Size(); }
-size_t StringColumn::Size() { return data_.Size(); }
+size_t Int64Column::Size() const { return data_.Size(); }
+size_t StringColumn::Size() const { return data_.Size(); }
 
 void Int64Column::Push(const std::string &s) {
     int64_t result = std::stoll(s);
@@ -60,4 +60,27 @@ const std::vector<size_t> &StringColumn::GetOffsets() const { return offsets_; }
 
 const std::vector<size_t> &Int64Column::GetOffsets() const {
     throw std::logic_error("Int64 column doesn't have offsets");
+}
+
+std::variant<const char *, std::pair<const char *, size_t>> Int64Column::Get(size_t index) const {
+    if (index >= Size()) {
+        throw std::invalid_argument("Too big index");
+    }
+    return data_.Data() + index * ElemSize;
+}
+
+std::variant<const char *, std::pair<const char *, size_t>> StringColumn::Get(size_t index) const {
+    if (index >= Size()) {
+        throw std::invalid_argument("Too big index");
+    }
+    const size_t start = offsets_[index];
+    const size_t end = index + 1 < offsets_.size() ? offsets_[index + 1] : data_.SizeInBytes();
+    return std::make_pair(data_.Data() + start, end - start);
+}
+
+std::variant<const char *, std::pair<const char *, size_t>> TimeColumn::Get(size_t index) const {
+    if (index >= Size()) {
+        throw std::invalid_argument("Too big index");
+    }
+    return data_.Data() + index * sizeof(std::chrono::system_clock::time_point);
 }

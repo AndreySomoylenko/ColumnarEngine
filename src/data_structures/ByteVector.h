@@ -8,11 +8,11 @@ public:
     ByteVector(size_t size, size_t size_in_bytes, void *buf) noexcept;
     ByteVector();
 
-    ByteVector(const ByteVector&) = delete;
-    ByteVector& operator=(const ByteVector&) = delete;
-    
-    ByteVector(ByteVector&&);
-    ByteVector& operator=(ByteVector&&);
+    ByteVector(const ByteVector &) = delete;
+    ByteVector &operator=(const ByteVector &) = delete;
+
+    ByteVector(ByteVector &&);
+    ByteVector &operator=(ByteVector &&);
 
     size_t Size() const;
     size_t SizeInBytes() const;
@@ -20,7 +20,7 @@ public:
     void Reserve(size_t size, size_t element_size);
     void Reserve(size_t size_in_bytes);
 
-    void Push(const void* data, size_t sz) ;
+    void Push(const void *data, size_t sz);
 
     const char *Data() const;
 

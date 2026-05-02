@@ -4,8 +4,8 @@
 #include "data_structures/MetaData.h"
 #include "data_structures/Scheme.h"
 
-#include <fstream>
 #include <array>
+#include <fstream>
 
 class ColumnarReader {
 public:
