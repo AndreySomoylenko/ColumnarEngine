@@ -2,6 +2,7 @@
 
 #include "Column.h"
 #include "Scheme.h"
+#include <optional>
 #include <unordered_set>
 
 using Raw = std::vector<std::string>;
