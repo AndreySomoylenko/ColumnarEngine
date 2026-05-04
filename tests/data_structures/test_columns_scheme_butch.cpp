@@ -1,3 +1,5 @@
+#include <chrono>
+#include <numeric>
 #include <stdexcept>
 #include <vector>
 
@@ -12,11 +14,21 @@ TEST(SchemeTest, AddsKnownAndUnknownColumnTypes) {
 
     scheme.Add({"id", "int64"});
     scheme.Add({"name", "string"});
+    scheme.Add({"created_at", "timestamp"});
+    scheme.Add({"event_date", "date"});
     scheme.Add({"payload", "json"});
 
-    EXPECT_EQ(scheme.GetSchemeNames(), (std::vector<std::string>{"id", "name", "payload"}));
-    EXPECT_EQ(scheme.GetSchemeTypes(), (std::vector<ColumnTypes>{Int64, String, Unknown}));
-    EXPECT_EQ(scheme.GiveRaws(), (std::vector<Raw>{{"id", "int64"}, {"name", "string"}, {"payload", "unknown"}}));
+    EXPECT_EQ(scheme.GetSchemeNames(),
+              (std::vector<std::string>{"id", "name", "created_at",
+                                        "event_date", "payload"}));
+    EXPECT_EQ(scheme.GetSchemeTypes(),
+              (std::vector<ColumnTypes>{Int64, String, Timestamp, Date,
+                                        Unknown}));
+    EXPECT_EQ(scheme.GiveRaws(), (std::vector<Raw>{{"id", "int64"},
+                                                   {"name", "string"},
+                                                   {"created_at", "timestamp"},
+                                                   {"event_date", "date"},
+                                                   {"payload", "unknown"}}));
 }
 
 TEST(SchemeTest, RejectsMalformedRows) {
@@ -65,6 +77,42 @@ TEST(ColumnTest, StringColumnPreservesBoundariesAndOffsets) {
     EXPECT_THROW(column.ToString(3), std::invalid_argument);
 }
 
+TEST(ColumnTest, TimeColumnStoresTimestampsAndRejectsInvalidValues) {
+    TimeColumn column;
+
+    column.Push("2013-07-14 20:38:47");
+    column.Push("1971-01-01T14:16:06");
+
+    EXPECT_EQ(column.Size(), 2U);
+    EXPECT_EQ(column.ToString(0), "2013-07-14 20:38:47");
+    EXPECT_EQ(column.ToString(1), "1971-01-01 14:16:06");
+    EXPECT_EQ(column.ToWrite().second,
+              2U * sizeof(std::chrono::system_clock::time_point));
+    EXPECT_EQ(column.GetColumnType(), Timestamp);
+    EXPECT_THROW(column.GetOffsets(), std::logic_error);
+    EXPECT_THROW(column.ToString(2), std::invalid_argument);
+    EXPECT_THROW(column.Push("2013-02-29 20:38:47"), std::invalid_argument);
+    EXPECT_THROW(column.Push("2013-07-14 24:00:00"), std::invalid_argument);
+    EXPECT_THROW(column.Push("2013-07-14"), std::invalid_argument);
+}
+
+TEST(ColumnTest, TimeColumnStoresDatesAtMidnightAndFormatsAsDate) {
+    TimeColumn column(true);
+
+    column.Push("2013-07-15");
+    column.Push("2020-02-29");
+
+    EXPECT_EQ(column.Size(), 2U);
+    EXPECT_EQ(column.ToString(0), "2013-07-15");
+    EXPECT_EQ(column.ToString(1), "2020-02-29");
+    EXPECT_EQ(column.ToWrite().second,
+              2U * sizeof(std::chrono::system_clock::time_point));
+    EXPECT_EQ(column.GetColumnType(), Date);
+    EXPECT_THROW(column.GetOffsets(), std::logic_error);
+    EXPECT_THROW(column.Push("2013-02-29"), std::invalid_argument);
+    EXPECT_THROW(column.Push("2013-07-15 00:00:00"), std::invalid_argument);
+}
+
 TEST(ColumnTest, ClearResetsColumnContents) {
     Int64Column int_column;
     StringColumn string_column;
@@ -87,20 +135,30 @@ TEST(ButchTest, BuildsColumnsFromSchemeAndReturnsRows) {
     Scheme scheme;
     scheme.Add({"id", "int64"});
     scheme.Add({"name", "string"});
+    scheme.Add({"created_at", "timestamp"});
+    scheme.Add({"event_date", "date"});
     scheme.Add({"note", "unknown"});
 
-    Butch butch(scheme, false);
-    butch.AddRaw({"1", "Alice", "payload"});
-    butch.AddRaw({"2", "Bob", ""});
+    std::vector<size_t> columns(scheme.GetSchemeNames().size());
+    std::iota(columns.begin(), columns.end(), 0);
+    Butch butch(columns, scheme, false);
+    butch.AddRaw({"1", "Alice", "2013-07-14 20:38:47", "2013-07-15",
+                  "payload"});
+    butch.AddRaw({"2", "Bob", "1971-01-01 14:16:06", "1971-01-01", ""});
 
     EXPECT_TRUE(butch.EnableToPush());
-    EXPECT_EQ(butch.HorizontalSize(), 3U);
+    EXPECT_EQ(butch.HorizontalSize(), 5U);
     EXPECT_EQ(butch.VerticalSize(), 2U);
-    EXPECT_EQ(butch.GetRaw(0), (Raw{"1", "Alice", "payload"}));
-    EXPECT_EQ(butch.GetRaw(1), (Raw{"2", "Bob", ""}));
+    EXPECT_EQ(butch.GetRaw(0),
+              (Raw{"1", "Alice", "2013-07-14 20:38:47", "2013-07-15",
+                   "payload"}));
+    EXPECT_EQ(butch.GetRaw(1),
+              (Raw{"2", "Bob", "1971-01-01 14:16:06", "1971-01-01", ""}));
     EXPECT_EQ(butch.GetColumns()[0]->GetColumnType(), Int64);
     EXPECT_EQ(butch.GetColumns()[1]->GetColumnType(), String);
-    EXPECT_EQ(butch.GetColumns()[2]->GetColumnType(), String);
+    EXPECT_EQ(butch.GetColumns()[2]->GetColumnType(), Timestamp);
+    EXPECT_EQ(butch.GetColumns()[3]->GetColumnType(), Date);
+    EXPECT_EQ(butch.GetColumns()[4]->GetColumnType(), String);
 }
 
 TEST(ButchTest, RejectsRowsWithWrongWidthAndCanAddToSingleColumn) {
@@ -108,7 +166,9 @@ TEST(ButchTest, RejectsRowsWithWrongWidthAndCanAddToSingleColumn) {
     scheme.Add({"id", "int64"});
     scheme.Add({"name", "string"});
 
-    Butch butch(scheme, false);
+    std::vector<size_t> columns(scheme.GetSchemeNames().size());
+    std::iota(columns.begin(), columns.end(), 0);
+    Butch butch(columns, scheme, false);
 
     EXPECT_THROW(butch.AddRaw({"1"}), std::invalid_argument);
 

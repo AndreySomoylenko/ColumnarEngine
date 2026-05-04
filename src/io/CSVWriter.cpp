@@ -3,9 +3,9 @@
 #include <fstream>
 #include <stdexcept>
 
-CSVWriter::CSVWriter(const std::string &filename, char sep)
-    : sep_(sep) {
-    os_.rdbuf()->pubsetbuf(io_buffer_.data(), static_cast<std::streamsize>(io_buffer_.size()));
+CSVWriter::CSVWriter(const std::string &filename, char sep) : sep_(sep) {
+    os_.rdbuf()->pubsetbuf(io_buffer_.data(),
+                           static_cast<std::streamsize>(io_buffer_.size()));
     os_.open(filename, std::ios::binary | std::ios::out);
 
     if (!os_.good()) {

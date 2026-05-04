@@ -8,7 +8,7 @@
 using Raw = std::vector<std::string>;
 
 class CSVReader {
-public:
+  public:
     CSVReader(const std::string &filename, char sep = ',');
 
     void ReadNext(Raw &raw);
@@ -16,7 +16,7 @@ public:
 
     ~CSVReader();
 
-private:
+  private:
     std::ifstream is_;
     char sep_;
 

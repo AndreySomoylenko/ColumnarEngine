@@ -8,14 +8,14 @@
 using Raw = std::vector<std::string>;
 
 class CSVWriter {
-public:
+  public:
     CSVWriter(const std::string &filename, char sep = ',');
 
     void WriteRaw(const Raw &raw);
 
     ~CSVWriter();
 
-private:
+  private:
     std::ofstream os_;
     char sep_;
     static constexpr std::size_t kIOBufferSize = 1 << 20;

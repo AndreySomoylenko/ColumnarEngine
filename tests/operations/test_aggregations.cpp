@@ -9,7 +9,8 @@
 
 namespace {
 
-std::shared_ptr<Column> MakeIntColumn(std::initializer_list<std::string> values) {
+std::shared_ptr<Column>
+MakeIntColumn(std::initializer_list<std::string> values) {
     auto column = std::make_shared<Int64Column>();
     for (const auto &value : values) {
         column->Push(value);
@@ -17,7 +18,8 @@ std::shared_ptr<Column> MakeIntColumn(std::initializer_list<std::string> values)
     return column;
 }
 
-std::shared_ptr<Column> MakeStringColumn(std::initializer_list<std::string> values) {
+std::shared_ptr<Column>
+MakeStringColumn(std::initializer_list<std::string> values) {
     auto column = std::make_shared<StringColumn>();
     for (const auto &value : values) {
         column->Push(value);
@@ -63,7 +65,9 @@ TEST(AggregationTest, EmptyColumnThrowsForMinMaxAndAvg) {
 
     EXPECT_THROW((void)agg::Min<int64_t>(empty_ints), std::invalid_argument);
     EXPECT_THROW((void)agg::Max<int64_t>(empty_ints), std::invalid_argument);
-    EXPECT_THROW((void)agg::Min<std::string>(empty_strings), std::invalid_argument);
-    EXPECT_THROW((void)agg::Max<std::string>(empty_strings), std::invalid_argument);
+    EXPECT_THROW((void)agg::Min<std::string>(empty_strings),
+                 std::invalid_argument);
+    EXPECT_THROW((void)agg::Max<std::string>(empty_strings),
+                 std::invalid_argument);
     EXPECT_THROW((void)agg::Avg(empty_ints), std::invalid_argument);
 }

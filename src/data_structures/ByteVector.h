@@ -4,7 +4,7 @@
 #include <cstring>
 
 class ByteVector {
-public:
+  public:
     ByteVector(size_t size, size_t size_in_bytes, void *buf) noexcept;
     ByteVector();
 
@@ -27,7 +27,7 @@ public:
 
     void Clear();
 
-private:
+  private:
     size_t capasity_;
 
     size_t size_;
