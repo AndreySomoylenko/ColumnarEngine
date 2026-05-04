@@ -1,3 +1,0 @@
-add_library(columnar_core Engine.cpp)
-
-target_link_libraries(columnar_core PUBLIC columnar_data_structures columnar_io)
