@@ -113,13 +113,15 @@ void Butch::Clear() {
 }
 
 Raw Butch::GetRaw(const size_t index) {
-    if (index >= VerticalSize() ||
-        enabled_.has_value() && !enabled_->count(index)) {
+    if (index >= VerticalSize()) {
         throw std::out_of_range("Incorrect row index");
     }
 
     Raw result;
     for (size_t i = 0; i < HorizontalSize(); ++i) {
+        if (enabled_.has_value() && !enabled_->count(i)) {
+            continue;
+        }
         result.emplace_back(columns_[i]->ToString(index));
     }
 
