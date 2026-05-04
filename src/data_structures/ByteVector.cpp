@@ -15,6 +15,10 @@ ByteVector::ByteVector(size_t size, size_t size_in_bytes, void *buf) noexcept
 
 void ByteVector::ReAllocate(size_t new_cap) {
     void *new_buf = realloc(data_, new_cap);
+    if (new_buf == nullptr) {
+        throw std::bad_alloc();
+    }
+
     capasity_ = new_cap;
     data_ = new_buf;
 }

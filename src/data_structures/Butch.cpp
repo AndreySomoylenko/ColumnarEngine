@@ -40,7 +40,12 @@ void Butch::AddRaw(const Raw &raw) {
 bool Butch::EnableToPush() { return VerticalSize() < kMaxRowsPerBatch; }
 
 size_t Butch::HorizontalSize() const { return columns_.size(); }
-size_t Butch::VerticalSize() const { return columns_[0]->Size(); }
+size_t Butch::VerticalSize() const {
+    if (columns_.empty()) {
+        return 0;
+    }
+    return columns_[0]->Size();
+}
 
 std::vector<std::shared_ptr<Column>> &Butch::GetColumns() { return columns_; }
 const std::vector<std::shared_ptr<Column>> &Butch::GetColumns() const { return columns_; }

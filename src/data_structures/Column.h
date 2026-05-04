@@ -5,6 +5,8 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <variant>
+#include <chrono>
 
 enum ColumnTypes { Int64, String, Unknown, Timestamp };
 

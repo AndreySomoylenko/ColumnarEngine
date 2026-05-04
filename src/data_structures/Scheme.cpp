@@ -34,7 +34,10 @@ std::vector<Raw> Scheme::GiveRaws() const {
             type_str = "int64";
         } else if (column_types[i] == ColumnTypes::String) {
             type_str = "string";
-        } else if (column_types[i] == ColumnTypes::Unknown) {
+        } else if (column_types[i] == ColumnTypes::Timestamp) {
+            type_str = "timestamp";
+        }
+        else if (column_types[i] == ColumnTypes::Unknown) {
             type_str = "unknown";
         }
 

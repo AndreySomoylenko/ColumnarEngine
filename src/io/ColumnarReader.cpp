@@ -18,34 +18,60 @@ ColumnarReader::ColumnarReader(const std::string &columnar)
     }
 
     std::streamoff meta;
-    is_.read(reinterpret_cast<char *>(&meta), sizeof(meta));
+    if (!is_.read(reinterpret_cast<char *>(&meta), sizeof(meta))) {
+        throw std::invalid_argument("You give me really bad file");
+    }
     data_.meta_section_start = std::streampos(meta);
     is_.seekg(meta, std::ios::beg);
+
+    if (!is_.good()) {
+        throw std::invalid_argument("You give me really bad file");
+    }
 
     std::streamoff chunk_start;
 
     size_t chunk_count;
-    is_.read(reinterpret_cast<char *>(&chunk_count), sizeof(chunk_count));
+    if (!is_.read(reinterpret_cast<char *>(&chunk_count), sizeof(chunk_count))) {
+        throw std::invalid_argument("You give me really bad file");
+    }
     for (size_t i = 0; i < chunk_count; ++i) {
-        is_.read(reinterpret_cast<char *>(&chunk_start), sizeof(chunk_start));
+        if (!is_.read(reinterpret_cast<char *>(&chunk_start), sizeof(chunk_start))) {
+            throw std::invalid_argument("You give me really bad file");
+        }
         data_.chunk_metas.push_back(std::streampos(chunk_start));
     }
 
-    while (is_.peek() != EOF) {
+    while (true) {
+        const int next = is_.peek();
+        if (next == EOF) {
+            if (!is_.eof()) {
+                throw std::invalid_argument("You give me really bad file");
+            }
+            break;
+        }
         size_t name_sz;
-        is_.read(reinterpret_cast<char *>(&name_sz), sizeof(name_sz));
+        if (!is_.read(reinterpret_cast<char *>(&name_sz), sizeof(name_sz))) {
+            throw std::invalid_argument("You give me really bad file");
+        }
 
         std::string name(name_sz, ' ');
-        is_.read(name.data(), name_sz);
+        if (!is_.read(name.data(), name_sz)) {
+            throw std::invalid_argument("You give me really bad file");
+        }
 
         size_t type_sz;
-        is_.read(reinterpret_cast<char *>(&type_sz), sizeof(type_sz));
-
+        if (!is_.read(reinterpret_cast<char *>(&type_sz), sizeof(type_sz))) {
+            throw std::invalid_argument("You give me really bad file");
+        }
         std::string type(type_sz, ' ');
-        is_.read(type.data(), type_sz);
+        if (!is_.read(type.data(), type_sz)) {
+            throw std::invalid_argument("You give me really bad file");
+        }
 
         data_.scheme.Add(Raw{name, type});
     }
+
+    is_.clear();
 }
 
 Butch ColumnarReader::ReadNext() {
@@ -80,8 +106,9 @@ Butch ColumnarReader::ReadNext() {
 
         if (types[i] == ColumnTypes::Int64) {
             size_t col_size = static_cast<size_t>(column_size);
-            ByteVector data(col_size / 8, col_size, malloc(col_size));
-            is_.read(const_cast<char *>(data.Data()), col_size);
+            void *buffer = malloc(col_size);
+            is_.read(static_cast<char *>(buffer), col_size);
+            ByteVector data(col_size / 8, col_size, buffer);
             result.GetColumns()[i] = std::make_shared<Int64Column>(std::move(data));
         } else if (types[i] == ColumnTypes::String || types[i] == ColumnTypes::Unknown) {
             size_t data_sz;
