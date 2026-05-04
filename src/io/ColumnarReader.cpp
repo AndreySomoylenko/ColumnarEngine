@@ -76,6 +76,8 @@ ColumnarReader::ColumnarReader(const std::string &columnar) {
         data_.scheme.Add(Raw{name, type});
     }
 
+    data_.column_numbers = data_.scheme.GetSchemeNames().size();
+
     is_.clear();
 }
 
