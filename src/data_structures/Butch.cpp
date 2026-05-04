@@ -6,8 +6,13 @@
 Butch::Butch(std::vector<size_t> &&column_indexes, const Scheme &scheme,
              bool reserve)
     : column_indexes_(std::move(column_indexes)) {
+    const auto &scheme_types = scheme.GetSchemeTypes();
     for (auto &ind : column_indexes_) {
-        auto x = scheme.GetSchemeTypes()[ind];
+        if (ind >= scheme_types.size()) {
+            throw std::out_of_range("Column index out of range for scheme types");
+        }
+
+        auto x = scheme_types[ind];
 
         if (reserve) {
             if (x == ColumnTypes::Int64) {
