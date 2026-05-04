@@ -81,7 +81,7 @@ ColumnarReader::ColumnarReader(const std::string &columnar) {
     is_.clear();
 }
 
-Butch ColumnarReader::ReadNext(std::vector<size_t> &columns_to_read,
+Butch ColumnarReader::ReadNext(const std::vector<size_t> &columns_to_read,
                                size_t &cur_index) {
     if (IsEnd(cur_index)) {
         throw std::out_of_range("No more data to read");
@@ -178,7 +178,7 @@ Butch ColumnarReader::ReadNext(std::vector<size_t> &columns_to_read,
     return result;
 }
 
-bool ColumnarReader::IsEnd(size_t cur_butch) {
+bool ColumnarReader::IsEnd(size_t cur_butch) const{
     return cur_butch >= data_.chunk_metas.size();
 }
 
@@ -186,10 +186,10 @@ ColumnarReader::~ColumnarReader() { is_.close(); }
 
 const Scheme &ColumnarReader::GetScheme() const { return data_.scheme; }
 
-std::string ColumnarReader::GetNameByIndex(size_t index) {
+std::string ColumnarReader::GetNameByIndex(size_t index) const {
     return data_.GetColumnNameByIndex(index);
 }
 
-ColumnTypes ColumnarReader::GetTypeByIndex(size_t index) {
+ColumnTypes ColumnarReader::GetTypeByIndex(size_t index) const {
     return data_.GetColumnTypeByIndex(index);
 }

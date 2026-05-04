@@ -12,6 +12,6 @@ struct MetaData {
 
     std::vector<std::vector<std::streampos>> columns_starts; // TODO after stable work
 
-    std::string GetColumnNameByIndex(size_t index);
-    ColumnTypes GetColumnTypeByIndex(size_t index);
+    std::string GetColumnNameByIndex(size_t index) const;
+    ColumnTypes GetColumnTypeByIndex(size_t index) const;
 };

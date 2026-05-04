@@ -1,6 +1,6 @@
 #include "MetaData.h"
 
-std::string MetaData::GetColumnNameByIndex(size_t index) {
+std::string MetaData::GetColumnNameByIndex(size_t index) const {
     if (index >= column_numbers) {
         throw std::out_of_range("Incorrect column index");
     }
@@ -9,7 +9,7 @@ std::string MetaData::GetColumnNameByIndex(size_t index) {
     return names[index];
 }
 
-ColumnTypes MetaData::GetColumnTypeByIndex(size_t index) {
+ColumnTypes MetaData::GetColumnTypeByIndex(size_t index) const {
     if (index >= column_numbers) {
         throw std::out_of_range("Incorrect column index");
     }
