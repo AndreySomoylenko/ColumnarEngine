@@ -8,21 +8,23 @@
 #include <fstream>
 
 class ColumnarReader {
-public:
+  public:
     ColumnarReader() = default;
     ColumnarReader(const std::string &columnar);
     ColumnarReader &operator=(ColumnarReader &&other) = default;
-    Butch ReadNext();
-    void Reset();
-    bool IsEnd();
+    Butch ReadNext(const std::vector<size_t> &columns_to_read,
+                   size_t &cur_index);
+    bool IsEnd(size_t cur_butch) const;
 
     const Scheme &GetScheme() const;
 
+    std::string GetNameByIndex(size_t index) const;
+    ColumnTypes GetTypeByIndex(size_t index) const;
+
     ~ColumnarReader();
 
-private:
+  private:
     std::ifstream is_;
-    size_t cur_butch_;
 
     MetaData data_;
     static constexpr std::size_t kIOBufferSize = 1 << 20;

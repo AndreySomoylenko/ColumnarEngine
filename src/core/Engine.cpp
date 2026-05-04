@@ -5,9 +5,12 @@
 #include "io/CSVWriter.h"
 #include "io/ColumnarReader.h"
 #include "io/ColumnarWriter.h"
+#include "io/Scanner.h"
 #include <filesystem>
+#include <numeric>
 
-Engine::Engine(const Filename &data, const Filename &scheme, const Filename &columnar) {
+Engine::Engine(const Filename &data, const Filename &scheme,
+               const Filename &columnar) {
     CSVReader scheme_reader(scheme);
 
     Scheme t_scheme;
@@ -22,7 +25,11 @@ Engine::Engine(const Filename &data, const Filename &scheme, const Filename &col
         t_scheme.Add(cur);
     }
 
-    Butch tmp(t_scheme);
+    std::vector<size_t> column_indexes(t_scheme.GetSchemeNames().size());
+
+    std::iota(column_indexes.begin(), column_indexes.end(), 0);
+
+    Butch tmp(std::move(column_indexes), t_scheme);
 
     CSVReader data_reader(data);
 
@@ -56,31 +63,31 @@ Engine::Engine(const Filename &data, const Filename &scheme, const Filename &col
     reader_ = ColumnarReader(columnar);
 }
 
-Engine::Engine(const Filename &columnar)
-    : reader_(columnar) {}
+Engine::Engine(const Filename &columnar) : reader_(columnar) {}
 
 void Engine::TakeAll(const Filename &result_name) {
-    const std::filesystem::path result_path(result_name);
-    const std::filesystem::path scheme_path = result_path.parent_path() / ("scheme_" + result_path.filename().string());
+    const Scheme &scheme = reader_.GetScheme();
+    const auto &names = scheme.GetSchemeNames();
 
-    CSVWriter data_writer(result_name);
-    CSVWriter scheme_writer(scheme_path.string());
+    std::vector<size_t> column_indexes(names.size());
+    std::iota(column_indexes.begin(), column_indexes.end(), 0);
 
-    reader_.Reset();
+    Scanner scanner(column_indexes, reader_);
+    CSVWriter result_writer(result_name);
 
-    while (!reader_.IsEnd()) {
-        Butch tmp = reader_.ReadNext();
-
-        for (size_t i = 0; i < tmp.VerticalSize(); ++i) {
-            data_writer.WriteRaw(tmp.GetRaw(i));
+    while (!scanner.IsEnd()) {
+        Butch chunk = scanner.ReadNext();
+        for (size_t row = 0; row < chunk.VerticalSize(); ++row) {
+            result_writer.WriteRaw(chunk.GetRaw(row));
         }
     }
 
-    const Scheme &cur = reader_.GetScheme();
-
-    auto to_write = cur.GiveRaws();
-
-    for (auto &x : to_write) {
-        scheme_writer.WriteRaw(x);
+    const std::filesystem::path result_path(result_name);
+    const std::filesystem::path scheme_path =
+        result_path.parent_path() /
+        ("scheme_" + result_path.filename().string());
+    CSVWriter scheme_writer(scheme_path.string());
+    for (const Raw &row : scheme.GiveRaws()) {
+        scheme_writer.WriteRaw(row);
     }
 }

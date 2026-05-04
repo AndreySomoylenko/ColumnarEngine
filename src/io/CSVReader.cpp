@@ -4,9 +4,9 @@
 #include <stdexcept>
 #include <string>
 
-CSVReader::CSVReader(const std::string &filename, char sep)
-    : sep_(sep) {
-    is_.rdbuf()->pubsetbuf(io_buffer_.data(), static_cast<std::streamsize>(io_buffer_.size()));
+CSVReader::CSVReader(const std::string &filename, char sep) : sep_(sep) {
+    is_.rdbuf()->pubsetbuf(io_buffer_.data(),
+                           static_cast<std::streamsize>(io_buffer_.size()));
     is_.open(filename, std::ios::binary);
 
     if (!is_) {

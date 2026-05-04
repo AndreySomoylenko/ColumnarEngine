@@ -1,19 +1,22 @@
 #pragma once
 
 #include "data_structures/ByteVector.h"
+#include <chrono>
 #include <cstddef>
 #include <memory>
 #include <string>
+#include <variant>
 #include <vector>
 
-enum ColumnTypes { Int64, String, Unknown, Timestamp };
+enum ColumnTypes { Int64, String, Unknown, Timestamp, Date };
 
 class Column : public std::enable_shared_from_this<Column> {
-public:
+  public:
     virtual size_t Size() const = 0;
     virtual void Push(const std::string &s) = 0;
     virtual std::string ToString(const size_t index) = 0;
-    virtual std::variant<const char *, std::pair<const char *, size_t>> Get(size_t index) const = 0;
+    virtual std::variant<const char *, std::pair<const char *, size_t>>
+    Get(size_t index) const = 0;
     virtual void Clear() = 0;
 
     virtual std::pair<const char *, size_t> ToWrite() = 0;
@@ -24,12 +27,12 @@ public:
 
     virtual ~Column() = default;
 
-protected:
+  protected:
     ByteVector data_;
 };
 
 class Int64Column : public Column {
-public:
+  public:
     Int64Column() = default;
     Int64Column(const size_t sz);
 
@@ -39,7 +42,8 @@ public:
     void Push(const std::string &s) override;
     std::string ToString(const size_t index) override;
     void Clear() override;
-    std::variant<const char *, std::pair<const char *, size_t>> Get(size_t index) const override;
+    std::variant<const char *, std::pair<const char *, size_t>>
+    Get(size_t index) const override;
 
     std::pair<const char *, size_t> ToWrite() override;
 
@@ -47,12 +51,12 @@ public:
 
     const std::vector<size_t> &GetOffsets() const override;
 
-private:
+  private:
     static constexpr size_t ElemSize = 8;
 };
 
 class StringColumn : public Column {
-public:
+  public:
     StringColumn() = default;
     StringColumn(const size_t sz);
 
@@ -61,7 +65,8 @@ public:
     size_t Size() const override;
     void Push(const std::string &s) override;
     std::string ToString(const size_t index) override;
-    std::variant<const char *, std::pair<const char *, size_t>> Get(size_t index) const override;
+    std::variant<const char *, std::pair<const char *, size_t>>
+    Get(size_t index) const override;
     void Clear() override;
 
     std::pair<const char *, size_t> ToWrite() override;
@@ -70,20 +75,22 @@ public:
 
     const std::vector<size_t> &GetOffsets() const override;
 
-private:
+  private:
     std::vector<size_t> offsets_;
 };
 
 class TimeColumn : public Column {
-public:
+  public:
     TimeColumn() = default;
-    TimeColumn(const size_t sz);
+    explicit TimeColumn(bool is_date);
+    TimeColumn(const size_t sz, bool is_date = false);
 
-    TimeColumn(ByteVector &&data);
+    TimeColumn(ByteVector &&data, bool is_date = false);
     size_t Size() const override;
     void Push(const std::string &s) override;
     std::string ToString(const size_t index) override;
-    std::variant<const char *, std::pair<const char *, size_t>> Get(size_t index) const override;
+    std::variant<const char *, std::pair<const char *, size_t>>
+    Get(size_t index) const override;
     void Clear() override;
 
     std::pair<const char *, size_t> ToWrite() override;
@@ -92,6 +99,8 @@ public:
 
     const std::vector<size_t> &GetOffsets() const override;
 
-private:
-    static constexpr size_t ElemSize = sizeof(std::chrono::system_clock::time_point);
+  private:
+    bool is_date_ = false;
+    static constexpr size_t ElemSize =
+        sizeof(std::chrono::system_clock::time_point);
 };

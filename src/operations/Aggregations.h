@@ -2,14 +2,11 @@
 
 #include "data_structures/Column.h"
 namespace agg {
-template <typename T>
-T Sum(const std::shared_ptr<Column> &column);
+template <typename T> T Sum(const std::shared_ptr<Column> &column);
 
-template <typename T>
-T Min(const std::shared_ptr<Column> &column);
+template <typename T> T Min(const std::shared_ptr<Column> &column);
 
-template <typename T>
-T Max(const std::shared_ptr<Column> &column);
+template <typename T> T Max(const std::shared_ptr<Column> &column);
 
 double Avg(const std::shared_ptr<Column> &column);
 

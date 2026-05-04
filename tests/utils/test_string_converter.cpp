@@ -11,7 +11,8 @@ TEST(StringConverterTest, WrapsPlainStringsInQuotes) {
 TEST(StringConverterTest, EscapesEmbeddedQuotes) {
     StringConverter converter;
 
-    EXPECT_EQ(converter.TransformStringToFilestring("he said \"hi\""), "\"he said \"\"hi\"\"\"");
+    EXPECT_EQ(converter.TransformStringToFilestring("he said \"hi\""),
+              "\"he said \"\"hi\"\"\"");
 }
 
 TEST(StringConverterTest, PreservesCommasAndEmptyStringsInsideQuotedField) {

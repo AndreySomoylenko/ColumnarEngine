@@ -6,12 +6,12 @@
 #include <vector>
 
 class ColumnarWriter {
-public:
+  public:
     ColumnarWriter(const std::string &filename);
     void WriteChunk(const Butch &butch);
     void Close(const Scheme &scheme);
 
-private:
+  private:
     std::vector<std::streampos> chunk_starts;
     std::ofstream os_;
     static constexpr std::size_t kIOBufferSize = 1 << 20;

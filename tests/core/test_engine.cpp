@@ -12,10 +12,11 @@
 namespace {
 
 class EngineTest : public ::testing::Test {
-protected:
+  protected:
     void SetUp() override {
         original_path_ = std::filesystem::current_path();
-        temp_dir_ = std::filesystem::temp_directory_path() / "columnar_engine_core_tests";
+        temp_dir_ = std::filesystem::temp_directory_path() /
+                    "columnar_engine_core_tests";
         std::filesystem::remove_all(temp_dir_);
         std::filesystem::create_directories(temp_dir_);
         std::filesystem::current_path(temp_dir_);
@@ -52,14 +53,30 @@ protected:
 } // namespace
 
 TEST_F(EngineTest, ConvertsCsvToColumnarAndExportsAllRowsAndScheme) {
-    WriteText("scheme.csv", "\"id\",\"int64\"\n\"name\",\"string\"\n");
-    WriteText("data.csv", "\"1\",\"Alice\"\n\"2\",\"Bob, Jr.\"\n\"3\",\"he said \"\"hi\"\"\"\n");
+    WriteText("scheme.csv",
+              "\"id\",\"int64\"\n\"name\",\"string\"\n\"created_at\","
+              "\"timestamp\"\n\"event_date\",\"date\"\n");
+    WriteText(
+        "data.csv",
+        "\"1\",\"Alice\",\"2013-07-14 20:38:47\",\"2013-07-15\"\n"
+        "\"2\",\"Bob, Jr.\",\"1971-01-01 14:16:06\",\"1971-01-01\"\n"
+        "\"3\",\"he said \"\"hi\"\"\",\"2020-02-29 00:00:00\","
+        "\"2020-02-29\"\n");
 
     Engine engine("data.csv", "scheme.csv", "data.hub");
     engine.TakeAll("out.csv");
 
-    EXPECT_EQ(ReadCsv("out.csv"), (std::vector<Raw>{{"1", "Alice"}, {"2", "Bob, Jr."}, {"3", "he said \"hi\""}}));
-    EXPECT_EQ(ReadCsv("scheme_out.csv"), (std::vector<Raw>{{"id", "int64"}, {"name", "string"}}));
+    EXPECT_EQ(ReadCsv("out.csv"),
+              (std::vector<Raw>{
+                  {"1", "Alice", "2013-07-14 20:38:47", "2013-07-15"},
+                  {"2", "Bob, Jr.", "1971-01-01 14:16:06", "1971-01-01"},
+                  {"3", "he said \"hi\"", "2020-02-29 00:00:00",
+                   "2020-02-29"}}));
+    EXPECT_EQ(ReadCsv("scheme_out.csv"),
+              (std::vector<Raw>{{"id", "int64"},
+                                {"name", "string"},
+                                {"created_at", "timestamp"},
+                                {"event_date", "date"}}));
 }
 
 TEST_F(EngineTest, OpensExistingColumnarFiles) {
@@ -71,5 +88,6 @@ TEST_F(EngineTest, OpensExistingColumnarFiles) {
     reopened.TakeAll("reopened.csv");
 
     EXPECT_EQ(ReadCsv("reopened.csv"), (std::vector<Raw>{{"10", "Ada"}}));
-    EXPECT_EQ(ReadCsv("scheme_reopened.csv"), (std::vector<Raw>{{"id", "int64"}, {"name", "string"}}));
+    EXPECT_EQ(ReadCsv("scheme_reopened.csv"),
+              (std::vector<Raw>{{"id", "int64"}, {"name", "string"}}));
 }

@@ -13,9 +13,10 @@ namespace {
 using Raw = std::vector<std::string>;
 
 class CsvIoTest : public ::testing::Test {
-protected:
+  protected:
     void SetUp() override {
-        temp_dir_ = std::filesystem::temp_directory_path() / "columnar_engine_csv_tests";
+        temp_dir_ = std::filesystem::temp_directory_path() /
+                    "columnar_engine_csv_tests";
         std::filesystem::create_directories(temp_dir_);
     }
 
@@ -24,16 +25,20 @@ protected:
         std::filesystem::remove_all(temp_dir_, ec);
     }
 
-    std::filesystem::path Path(const std::string &name) const { return temp_dir_ / name; }
+    std::filesystem::path Path(const std::string &name) const {
+        return temp_dir_ / name;
+    }
 
-    void WriteText(const std::filesystem::path &path, const std::string &text) const {
+    void WriteText(const std::filesystem::path &path,
+                   const std::string &text) const {
         std::ofstream out(path);
         out << text;
     }
 
     std::string ReadWholeFile(const std::filesystem::path &path) const {
         std::ifstream in(path);
-        return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        return std::string((std::istreambuf_iterator<char>(in)),
+                           std::istreambuf_iterator<char>());
     }
 
     std::filesystem::path temp_dir_;
@@ -42,7 +47,8 @@ protected:
 } // namespace
 
 TEST_F(CsvIoTest, ReaderParsesQuotedFieldsAndEmptyCells) {
-    WriteText(Path("input.csv"), "id,,\"name,with,comma\",\"he said \"\"hi\"\"\",\"\"\n");
+    WriteText(Path("input.csv"),
+              "id,,\"name,with,comma\",\"he said \"\"hi\"\"\",\"\"\n");
 
     CSVReader reader(Path("input.csv").string());
     Raw row;
@@ -109,7 +115,8 @@ TEST_F(CsvIoTest, ReaderMovesThroughMultipleRows) {
 }
 
 TEST_F(CsvIoTest, ReaderThrowsForMissingFile) {
-    EXPECT_THROW(CSVReader reader(Path("missing.csv").string()), std::invalid_argument);
+    EXPECT_THROW(CSVReader reader(Path("missing.csv").string()),
+                 std::invalid_argument);
 }
 
 TEST_F(CsvIoTest, WriterQuotesAndEscapesFields) {
@@ -118,7 +125,8 @@ TEST_F(CsvIoTest, WriterQuotesAndEscapesFields) {
         writer.WriteRaw({"a", "", "b,c", "he said \"hi\""});
     }
 
-    EXPECT_EQ(ReadWholeFile(Path("out.csv")), "\"a\",\"\",\"b,c\",\"he said \"\"hi\"\"\"\n");
+    EXPECT_EQ(ReadWholeFile(Path("out.csv")),
+              "\"a\",\"\",\"b,c\",\"he said \"\"hi\"\"\"\n");
 }
 
 TEST_F(CsvIoTest, WriterRoundTripsThroughReader) {

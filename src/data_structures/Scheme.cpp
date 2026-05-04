@@ -12,6 +12,10 @@ void Scheme::Add(const Raw &str) {
         column_types.emplace_back(ColumnTypes::Int64);
     } else if (str[1] == "string") {
         column_types.emplace_back(ColumnTypes::String);
+    } else if (str[1] == "timestamp") {
+        column_types.emplace_back(ColumnTypes::Timestamp);
+    } else if (str[1] == "date") {
+        column_types.emplace_back(ColumnTypes::Date);
     } else {
         column_types.emplace_back(ColumnTypes::Unknown);
     }
@@ -19,9 +23,13 @@ void Scheme::Add(const Raw &str) {
     column_names.emplace_back(str[0]);
 }
 
-const std::vector<std::string> &Scheme::GetSchemeNames() const { return column_names; }
+const std::vector<std::string> &Scheme::GetSchemeNames() const {
+    return column_names;
+}
 
-const std::vector<ColumnTypes> &Scheme::GetSchemeTypes() const { return column_types; }
+const std::vector<ColumnTypes> &Scheme::GetSchemeTypes() const {
+    return column_types;
+}
 
 std::vector<Raw> Scheme::GiveRaws() const {
     std::vector<Raw> result;
@@ -34,6 +42,10 @@ std::vector<Raw> Scheme::GiveRaws() const {
             type_str = "int64";
         } else if (column_types[i] == ColumnTypes::String) {
             type_str = "string";
+        } else if (column_types[i] == ColumnTypes::Timestamp) {
+            type_str = "timestamp";
+        } else if (column_types[i] == ColumnTypes::Date) {
+            type_str = "date";
         } else if (column_types[i] == ColumnTypes::Unknown) {
             type_str = "unknown";
         }
