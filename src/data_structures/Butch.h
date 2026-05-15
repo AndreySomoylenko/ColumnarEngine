@@ -32,7 +32,7 @@ class Butch {
 
     void SetEnabledColumns(std::optional<std::unordered_set<size_t>> &&enabled);
     const std::optional<std::unordered_set<size_t>> &GetEnabledColumns() const;
-    std::optional<std::unordered_set<size_t>> &&GetEnabledColumns();
+    std::optional<std::unordered_set<size_t>> &GetEnabledColumns();
     bool IsRowEnabled(size_t index) const;
 
     void Clear();
