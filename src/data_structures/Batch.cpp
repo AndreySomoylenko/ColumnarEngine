@@ -151,8 +151,8 @@ Batch::GetEnabledColumns() const {
     return enabled_;
 }
 
-std::optional<std::unordered_set<size_t>> &&Batch::GetEnabledColumns() {
-    return std::move(enabled_);
+std::optional<std::unordered_set<size_t>> &Batch::GetEnabledColumns() {
+    return enabled_;
 }
 
 bool Batch::IsRowEnabled(size_t index) const {
