@@ -1,12 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-apt-get update
-apt-get install -y --no-install-recommends \
-  cmake \
-  g++ \
-  ninja-build \
-  make \
-  ca-certificates
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 
-rm -rf /var/lib/apt/lists/*
+cmake --build build --target sandbox_app -j"$(nproc)"
+
+echo "Built files:"
+find build -name 'sandbox_app' -type f -print
