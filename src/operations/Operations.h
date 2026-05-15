@@ -276,6 +276,10 @@ ExpressionTask MakeAddInt64ConstantExpression(size_t column_index,
                                               int64_t value, std::string alias);
 ExpressionTask MakeSubInt64ConstantExpression(size_t column_index,
                                               int64_t value, std::string alias);
+ExpressionTask MakeInt128AddInt64ProductExpression(size_t int128_column_index,
+                                                   size_t int64_column_index,
+                                                   int64_t multiplier,
+                                                   std::string alias);
 
 ExpressionTask MakeLengthExpression(size_t column_index, std::string alias);
 ExpressionTask MakeExtractMinuteExpression(size_t column_index,

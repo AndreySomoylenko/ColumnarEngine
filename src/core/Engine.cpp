@@ -763,23 +763,25 @@ void Engine::Make30Querry() {
     ProjectionBuilder projection(reader_.GetScheme());
     const size_t width =
         projection.Require(hits::HitsColumn::ResolutionWidth);
-    std::vector<ExpressionTask> expressions;
-    expressions.reserve(89);
+    std::vector<ExpressionTask> result_expressions;
+    result_expressions.reserve(89);
     for (int64_t i = 1; i <= 89; ++i) {
-        expressions.emplace_back(
-            MakeAddInt64ConstantExpression(width, i, "w" + std::to_string(i)));
+        result_expressions.emplace_back(MakeInt128AddInt64ProductExpression(
+            0, 1, i, "sum_" + std::to_string(i)));
     }
-    std::vector<AggTask> aggs;
-    aggs.reserve(90);
-    aggs.emplace_back(MakeSumAgg(width, "sum_0"));
-    for (size_t i = 1; i <= 89; ++i) {
-        aggs.emplace_back(MakeSumAgg(i, "sum_" + std::to_string(i)));
+    std::vector<size_t> answer_columns;
+    answer_columns.reserve(90);
+    answer_columns.emplace_back(0);
+    for (size_t i = 2; i <= 90; ++i) {
+        answer_columns.emplace_back(i);
     }
     std::vector<std::unique_ptr<Operation>> operations;
-    operations.emplace_back(
-        std::make_unique<Expression>(MakeExpression(std::move(expressions))));
-    operations.emplace_back(
-        std::make_unique<Aggregation>(MakeAggregation(std::move(aggs))));
+    operations.emplace_back(std::make_unique<Aggregation>(MakeAggregation(
+        {MakeSumAgg(width, "sum_0"), MakeCountAgg(width, "count")})));
+    operations.emplace_back(std::make_unique<Expression>(
+        MakeExpression(std::move(result_expressions))));
+    operations.emplace_back(std::make_unique<SelectAnswer>(
+        MakeSelectAnswer(std::move(answer_columns))));
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
                       "query30.csv");
     Execute(pipeline);

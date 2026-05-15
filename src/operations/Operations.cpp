@@ -4,11 +4,12 @@
 #include "data_structures/Column.h"
 #include "data_structures/Scheme.h"
 #include <algorithm>
-#include <chrono>
 #include <cctype>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <functional>
 #include <iterator>
 #include <memory>
 #include <regex>
@@ -17,6 +18,7 @@
 #include <string_view>
 #include <unordered_set>
 #include <variant>
+#include <vector>
 
 using EnabledColumns = std::optional<std::unordered_set<size_t>>;
 
@@ -131,8 +133,8 @@ int ParseFilterFourDigits(const std::string &value, size_t pos) {
            (value[pos + 2] - '0') * 10 + (value[pos + 3] - '0');
 }
 
-std::chrono::system_clock::time_point ParseFilterTimePoint(
-    const std::string &value, bool is_date) {
+std::chrono::system_clock::time_point
+ParseFilterTimePoint(const std::string &value, bool is_date) {
     if (is_date) {
         if (value.size() != 10 || value[4] != '-' || value[7] != '-') {
             throw std::invalid_argument("Incorrect date");
@@ -217,6 +219,106 @@ std::string SqlLikePatternToRegex(std::string_view pattern) {
     }
     result += '$';
     return result;
+}
+
+std::vector<std::string> SplitLikePatternByPercent(std::string_view pattern) {
+    std::vector<std::string> parts;
+    size_t start = 0;
+
+    while (start <= pattern.size()) {
+        size_t percent = pattern.find('%', start);
+        size_t end =
+            percent == std::string_view::npos ? pattern.size() : percent;
+
+        if (end > start) {
+            parts.emplace_back(pattern.substr(start, end - start));
+        }
+
+        if (percent == std::string_view::npos) {
+            break;
+        }
+
+        start = percent + 1;
+    }
+
+    return parts;
+}
+
+bool ContainsLikeUnderscore(std::string_view pattern) {
+    return pattern.find('_') != std::string_view::npos;
+}
+
+bool ContainsLikePercent(std::string_view pattern) {
+    return pattern.find('%') != std::string_view::npos;
+}
+
+std::function<bool(std::string_view)> MakeSqlLikeMatcher(std::string pattern) {
+    const bool has_percent = ContainsLikePercent(pattern);
+    const bool has_underscore = ContainsLikeUnderscore(pattern);
+
+    if (!has_percent && !has_underscore) {
+        return [pattern = std::move(pattern)](std::string_view value) {
+            return value == pattern;
+        };
+    }
+
+    if (has_underscore) {
+        return [regex = std::regex(SqlLikePatternToRegex(pattern))](
+                   std::string_view value) {
+            return std::regex_match(value.begin(), value.end(), regex);
+        };
+    }
+
+    const bool anchored_start = !pattern.empty() && pattern.front() != '%';
+    const bool anchored_end = !pattern.empty() && pattern.back() != '%';
+
+    auto parts = SplitLikePatternByPercent(pattern);
+
+    if (parts.empty()) {
+        return [](std::string_view) { return true; };
+    }
+
+    return [parts = std::move(parts), anchored_start,
+            anchored_end](std::string_view value) {
+        size_t pos = 0;
+        size_t begin_part = 0;
+        size_t end_part = parts.size();
+
+        if (anchored_start) {
+            const auto &first = parts.front();
+            if (!value.starts_with(first)) {
+                return false;
+            }
+            pos = first.size();
+            begin_part = 1;
+        }
+
+        if (anchored_end) {
+            --end_part;
+        }
+
+        for (size_t i = begin_part; i < end_part; ++i) {
+            size_t found = value.find(parts[i], pos);
+            if (found == std::string_view::npos) {
+                return false;
+            }
+            pos = found + parts[i].size();
+        }
+
+        if (anchored_end) {
+            const auto &last = parts.back();
+            if (!value.ends_with(last)) {
+                return false;
+            }
+
+            size_t last_pos = value.size() - last.size();
+            if (last_pos < pos) {
+                return false;
+            }
+        }
+
+        return true;
+    };
 }
 
 std::string AggTypeName(AggType type) {
@@ -382,8 +484,8 @@ AggTask MakeCountAgg(size_t column_index, std::string alias) {
 }
 
 AggTask MakeCountDistinctAgg(size_t column_index, std::string alias) {
-    return MakeAggTask(column_index, AggType::CountDistinct,
-                       ColumnTypes::Int64, std::move(alias));
+    return MakeAggTask(column_index, AggType::CountDistinct, ColumnTypes::Int64,
+                       std::move(alias));
 }
 
 AggTask MakeAvgAgg(size_t column_index, std::string alias) {
@@ -646,9 +748,8 @@ size_t CountDistinctResultSize(const ResultAggVariant &result) {
 std::vector<Batch> Aggregation::Finalize() && {
     Scheme result_scheme;
     for (auto &task : tasks_) {
-        auto column_type =
-            task.agg_type == AggType::Avg ? ColumnTypes::Int128
-                                          : task.return_type;
+        auto column_type = task.agg_type == AggType::Avg ? ColumnTypes::Int128
+                                                         : task.return_type;
         result_scheme.Add({task.alias, GetNameByType(column_type)});
     }
 
@@ -672,8 +773,8 @@ std::vector<Batch> Aggregation::Finalize() && {
                         "Cannot calculate average of empty selection");
                 }
                 __int128 avg = sum / static_cast<__int128>(count);
-                result.AddToColumn(reinterpret_cast<char *>(&avg),
-                                   sizeof(avg), i);
+                result.AddToColumn(reinterpret_cast<char *>(&avg), sizeof(avg),
+                                   i);
             } else if (auto *current = std::get_if<std::pair<double, size_t>>(
                            &results_[i])) {
                 auto &[sum, count] = *current;
@@ -682,8 +783,8 @@ std::vector<Batch> Aggregation::Finalize() && {
                         "Cannot calculate average of empty selection");
                 }
                 __int128 avg = static_cast<__int128>(sum / count);
-                result.AddToColumn(reinterpret_cast<char *>(&avg),
-                                   sizeof(avg), i);
+                result.AddToColumn(reinterpret_cast<char *>(&avg), sizeof(avg),
+                                   i);
             } else {
                 throw std::invalid_argument(
                     "Unsupported column type for average");
@@ -734,21 +835,20 @@ FilterTask MakeRawFilter(size_t column_index,
 
 FilterTask MakeInt64Filter(size_t column_index,
                            std::function<bool(int64_t)> condition) {
-    return MakeRawFilter(
-        column_index,
-        [condition = std::move(condition)](const char *data, size_t size) {
-            return condition(ReadIntegerFilterValue(data, size));
-        });
+    return MakeRawFilter(column_index, [condition = std::move(condition)](
+                                           const char *data, size_t size) {
+        return condition(ReadIntegerFilterValue(data, size));
+    });
 }
 
 FilterTask MakeInt64EqualFilter(size_t column_index, int64_t expected) {
-    return MakeInt64Filter(column_index,
-                           [expected](int64_t value) { return value == expected; });
+    return MakeInt64Filter(
+        column_index, [expected](int64_t value) { return value == expected; });
 }
 
 FilterTask MakeInt64NotEqualFilter(size_t column_index, int64_t expected) {
-    return MakeInt64Filter(column_index,
-                           [expected](int64_t value) { return value != expected; });
+    return MakeInt64Filter(
+        column_index, [expected](int64_t value) { return value != expected; });
 }
 
 FilterTask MakeInt64LessFilter(size_t column_index, int64_t bound) {
@@ -773,34 +873,30 @@ FilterTask MakeInt64GreaterOrEqualFilter(size_t column_index, int64_t bound) {
 
 FilterTask MakeInt64InFilter(size_t column_index,
                              std::unordered_set<int64_t> values) {
-    return MakeInt64Filter(
-        column_index,
-        [values = std::move(values)](int64_t value) {
-            return values.contains(value);
-        });
+    return MakeInt64Filter(column_index,
+                           [values = std::move(values)](int64_t value) {
+                               return values.contains(value);
+                           });
 }
 
 FilterTask MakeStringFilter(size_t column_index,
                             std::function<bool(std::string_view)> condition) {
-    return MakeRawFilter(
-        column_index,
-        [condition = std::move(condition)](const char *data, size_t size) {
-            return condition(std::string_view(data, size));
-        });
+    return MakeRawFilter(column_index, [condition = std::move(condition)](
+                                           const char *data, size_t size) {
+        return condition(std::string_view(data, size));
+    });
 }
 
 FilterTask MakeStringEqualFilter(size_t column_index, std::string expected) {
     return MakeStringFilter(
-        column_index,
-        [expected = std::move(expected)](std::string_view value) {
+        column_index, [expected = std::move(expected)](std::string_view value) {
             return value == expected;
         });
 }
 
 FilterTask MakeStringNotEqualFilter(size_t column_index, std::string expected) {
     return MakeStringFilter(
-        column_index,
-        [expected = std::move(expected)](std::string_view value) {
+        column_index, [expected = std::move(expected)](std::string_view value) {
             return value != expected;
         });
 }
@@ -822,59 +918,52 @@ FilterTask MakeStringNotRegexFilter(size_t column_index, std::string pattern) {
 }
 
 FilterTask MakeStringLikeFilter(size_t column_index, std::string pattern) {
-    return MakeStringFilter(
-        column_index,
-        [regex = std::regex(SqlLikePatternToRegex(pattern))](
-            std::string_view value) {
-            return std::regex_match(value.begin(), value.end(), regex);
-        });
+    return MakeStringFilter(column_index,
+                            MakeSqlLikeMatcher(std::move(pattern)));
 }
 
 FilterTask MakeStringNotLikeFilter(size_t column_index, std::string pattern) {
+    auto matcher = MakeSqlLikeMatcher(std::move(pattern));
+
     return MakeStringFilter(
-        column_index,
-        [regex = std::regex(SqlLikePatternToRegex(pattern))](
-            std::string_view value) {
-            return !std::regex_match(value.begin(), value.end(), regex);
+        column_index, [matcher = std::move(matcher)](std::string_view value) {
+            return !matcher(value);
         });
 }
 
 FilterTask MakeTimePointFilter(
     size_t column_index,
     std::function<bool(std::chrono::system_clock::time_point)> condition) {
-    return MakeRawFilter(
-        column_index,
-        [condition = std::move(condition)](const char *data, size_t size) {
-            if (size != sizeof(std::chrono::system_clock::time_point)) {
-                throw std::invalid_argument("Expected time point value");
-            }
+    return MakeRawFilter(column_index, [condition = std::move(condition)](
+                                           const char *data, size_t size) {
+        if (size != sizeof(std::chrono::system_clock::time_point)) {
+            throw std::invalid_argument("Expected time point value");
+        }
 
-            std::chrono::system_clock::time_point value;
-            std::memcpy(&value, data, sizeof(value));
-            return condition(value);
-        });
+        std::chrono::system_clock::time_point value;
+        std::memcpy(&value, data, sizeof(value));
+        return condition(value);
+    });
 }
 
 FilterTask MakeTimestampRangeFilter(size_t column_index, std::string from,
                                     std::string to) {
     const auto from_value = ParseFilterTimePoint(from, false);
     const auto to_value = ParseFilterTimePoint(to, false);
-    return MakeTimePointFilter(column_index,
-                               [from_value, to_value](auto value) {
-                                   return value >= from_value &&
-                                          value <= to_value;
-                               });
+    return MakeTimePointFilter(
+        column_index, [from_value, to_value](auto value) {
+            return value >= from_value && value <= to_value;
+        });
 }
 
 FilterTask MakeDateRangeFilter(size_t column_index, std::string from,
                                std::string to) {
     const auto from_value = ParseFilterTimePoint(from, true);
     const auto to_value = ParseFilterTimePoint(to, true);
-    return MakeTimePointFilter(column_index,
-                               [from_value, to_value](auto value) {
-                                   return value >= from_value &&
-                                          value <= to_value;
-                               });
+    return MakeTimePointFilter(
+        column_index, [from_value, to_value](auto value) {
+            return value >= from_value && value <= to_value;
+        });
 }
 
 Filter MakeFilter(std::vector<FilterTask> &&conditions) {
@@ -1619,6 +1708,24 @@ ExpressionTask MakeSubInt64ConstantExpression(size_t column_index,
         }};
 }
 
+ExpressionTask MakeInt128AddInt64ProductExpression(size_t int128_column_index,
+                                                   size_t int64_column_index,
+                                                   int64_t multiplier,
+                                                   std::string alias) {
+    return ExpressionTask{
+        std::move(alias), ColumnTypes::Int128,
+        [int128_column_index, int64_column_index,
+         multiplier](const Batch &input, size_t row, Column &output) {
+            __int128 result = ReadColumnValue<__int128>(
+                input.GetColumn(int128_column_index), row);
+            result += static_cast<__int128>(ReadIntegerColumnValue(
+                          input.GetColumn(int64_column_index), row)) *
+                      static_cast<__int128>(multiplier);
+            output.Push(reinterpret_cast<const char *>(&result),
+                        sizeof(result));
+        }};
+}
+
 ExpressionTask MakeLengthExpression(size_t column_index, std::string alias) {
     return ExpressionTask{
         std::move(alias), ColumnTypes::Int64,
@@ -1665,12 +1772,10 @@ ExpressionTask MakeCaseWhenBothZeroThenStringElseEmptyExpression(
         std::move(alias), ColumnTypes::String,
         [first_column_index, second_column_index,
          string_column_index](const Batch &input, size_t row, Column &output) {
-            int64_t first =
-                ReadIntegerColumnValue(input.GetColumn(first_column_index),
-                                       row);
-            int64_t second =
-                ReadIntegerColumnValue(input.GetColumn(second_column_index),
-                                       row);
+            int64_t first = ReadIntegerColumnValue(
+                input.GetColumn(first_column_index), row);
+            int64_t second = ReadIntegerColumnValue(
+                input.GetColumn(second_column_index), row);
             if (first == 0 && second == 0) {
                 auto value = input.GetColumn(string_column_index)->Get(row);
                 output.Push(value.data, value.size);
