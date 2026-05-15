@@ -1,5 +1,5 @@
 add_library(columnar_operations
-    Aggregations.cpp
+    Operations.cpp
 )
 
 target_include_directories(columnar_operations

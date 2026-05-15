@@ -10,7 +10,7 @@
 #include "data_structures/Scheme.h"
 #include "io/ColumnarReader.h"
 #include "io/ColumnarWriter.h"
-#include "io/Scanner.h"
+#include "io/IOScanner.h"
 
 namespace {
 
@@ -39,10 +39,22 @@ class ColumnarIoTest : public ::testing::Test {
         return scheme;
     }
 
-    std::vector<size_t> AllColumns(const Scheme &scheme) const {
-        std::vector<size_t> columns(scheme.GetSchemeNames().size());
-        std::iota(columns.begin(), columns.end(), 0);
-        return columns;
+    Scheme Project(const Scheme &scheme,
+                   std::initializer_list<size_t> indexes) const {
+        Scheme result;
+        const auto raws = scheme.GiveRaws();
+        for (size_t index : indexes) {
+            result.Add(raws[index]);
+        }
+        return result;
+    }
+
+    Scheme AllColumns(const Scheme &scheme) const {
+        Scheme result;
+        for (const auto &raw : scheme.GiveRaws()) {
+            result.Add(raw);
+        }
+        return result;
     }
 
     std::filesystem::path temp_dir_;
@@ -53,11 +65,11 @@ class ColumnarIoTest : public ::testing::Test {
 TEST_F(ColumnarIoTest, WritesAndReadsMultipleChunksWithScheme) {
     Scheme scheme = MakeScheme();
 
-    Butch first(AllColumns(scheme), scheme, false);
+    Butch first(scheme, false);
     first.AddRaw({"1", "Alice", "abc"});
     first.AddRaw({"2", "Bob", ""});
 
-    Butch second(AllColumns(scheme), scheme, false);
+    Butch second(scheme, false);
     second.AddRaw({"3", "Caroline", "longer payload"});
 
     {
@@ -73,8 +85,8 @@ TEST_F(ColumnarIoTest, WritesAndReadsMultipleChunksWithScheme) {
               (std::vector<Raw>{{"id", "int64"},
                                 {"name", "string"},
                                 {"payload", "unknown"}}));
-    std::vector<size_t> columns = AllColumns(reader.GetScheme());
-    Scanner scanner(columns, reader);
+    Scheme columns = AllColumns(reader.GetScheme());
+    IOScanner scanner(columns, reader);
     EXPECT_FALSE(scanner.IsEnd());
 
     Butch read_first = scanner.ReadNext();
@@ -99,7 +111,7 @@ TEST_F(ColumnarIoTest, SupportsStringOnlySchemas) {
     scheme.Add({"first", "string"});
     scheme.Add({"second", "string"});
 
-    Butch butch(AllColumns(scheme), scheme, false);
+    Butch butch(scheme, false);
     butch.AddRaw({"abc", "de"});
     butch.AddRaw({"", "a longer value"});
 
@@ -110,8 +122,8 @@ TEST_F(ColumnarIoTest, SupportsStringOnlySchemas) {
     }
 
     ColumnarReader reader(Path("strings.hub").string());
-    std::vector<size_t> columns = AllColumns(reader.GetScheme());
-    Scanner scanner(columns, reader);
+    Scheme columns = AllColumns(reader.GetScheme());
+    IOScanner scanner(columns, reader);
     Butch read = scanner.ReadNext();
 
     EXPECT_EQ(read.VerticalSize(), 2U);
@@ -122,7 +134,7 @@ TEST_F(ColumnarIoTest, SupportsStringOnlySchemas) {
 TEST_F(ColumnarIoTest, ScannerReadsSelectedColumnsOnly) {
     Scheme scheme = MakeScheme();
 
-    Butch butch(AllColumns(scheme), scheme, false);
+    Butch butch(scheme, false);
     butch.AddRaw({"1", "Alice", "abc"});
     butch.AddRaw({"2", "Bob", "payload"});
 
@@ -133,8 +145,8 @@ TEST_F(ColumnarIoTest, ScannerReadsSelectedColumnsOnly) {
     }
 
     ColumnarReader reader(Path("projected.hub").string());
-    std::vector<size_t> columns{1, 2};
-    Scanner scanner(columns, reader);
+    Scheme columns = Project(reader.GetScheme(), {1, 2});
+    IOScanner scanner(columns, reader);
 
     Butch read = scanner.ReadNext();
 
@@ -152,7 +164,7 @@ TEST_F(ColumnarIoTest, ReadsAndWritesTimestampColumns) {
     scheme.Add({"event_date", "date"});
     scheme.Add({"name", "string"});
 
-    Butch butch(AllColumns(scheme), scheme, false);
+    Butch butch(scheme, false);
     butch.AddRaw({"1", "2013-07-14 20:38:47", "2013-07-15", "Alice"});
     butch.AddRaw({"2", "1971-01-01 14:16:06", "1971-01-01", "Bob"});
 
@@ -169,8 +181,8 @@ TEST_F(ColumnarIoTest, ReadsAndWritesTimestampColumns) {
                                 {"event_date", "date"},
                                 {"name", "string"}}));
 
-    std::vector<size_t> all_columns = AllColumns(reader.GetScheme());
-    Scanner all_scanner(all_columns, reader);
+    Scheme all_columns = AllColumns(reader.GetScheme());
+    IOScanner all_scanner(all_columns, reader);
     Butch all_read = all_scanner.ReadNext();
 
     EXPECT_EQ(all_read.GetRaw(0),
@@ -178,16 +190,16 @@ TEST_F(ColumnarIoTest, ReadsAndWritesTimestampColumns) {
     EXPECT_EQ(all_read.GetRaw(1),
               (Raw{"2", "1971-01-01 14:16:06", "1971-01-01", "Bob"}));
 
-    std::vector<size_t> timestamp_column{1};
-    Scanner timestamp_scanner(timestamp_column, reader);
+    Scheme timestamp_column = Project(reader.GetScheme(), {1});
+    IOScanner timestamp_scanner(timestamp_column, reader);
     Butch timestamp_read = timestamp_scanner.ReadNext();
 
     EXPECT_EQ(timestamp_read.HorizontalSize(), 1U);
     EXPECT_EQ(timestamp_read.GetRaw(0), (Raw{"2013-07-14 20:38:47"}));
     EXPECT_EQ(timestamp_read.GetRaw(1), (Raw{"1971-01-01 14:16:06"}));
 
-    std::vector<size_t> date_column{2};
-    Scanner date_scanner(date_column, reader);
+    Scheme date_column = Project(reader.GetScheme(), {2});
+    IOScanner date_scanner(date_column, reader);
     Butch date_read = date_scanner.ReadNext();
 
     EXPECT_EQ(date_read.HorizontalSize(), 1U);

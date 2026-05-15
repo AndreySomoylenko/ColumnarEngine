@@ -3,7 +3,8 @@ add_library(columnar_io
     CSVWriter.cpp
     ColumnarReader.cpp
     ColumnarWriter.cpp
-    Scanner.cpp
+    IOScanner.cpp
+    VectorScanner.cpp
 )
 
 target_include_directories(columnar_io

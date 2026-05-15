@@ -5,9 +5,8 @@
 #include "io/CSVWriter.h"
 #include "io/ColumnarReader.h"
 #include "io/ColumnarWriter.h"
-#include "io/Scanner.h"
+#include "io/IOScanner.h"
 #include <filesystem>
-#include <numeric>
 
 Engine::Engine(const Filename &data, const Filename &scheme,
                const Filename &columnar) {
@@ -25,11 +24,7 @@ Engine::Engine(const Filename &data, const Filename &scheme,
         t_scheme.Add(cur);
     }
 
-    std::vector<size_t> column_indexes(t_scheme.GetSchemeNames().size());
-
-    std::iota(column_indexes.begin(), column_indexes.end(), 0);
-
-    Butch tmp(std::move(column_indexes), t_scheme);
+    Butch tmp(t_scheme);
 
     CSVReader data_reader(data);
 
@@ -67,12 +62,8 @@ Engine::Engine(const Filename &columnar) : reader_(columnar) {}
 
 void Engine::TakeAll(const Filename &result_name) {
     const Scheme &scheme = reader_.GetScheme();
-    const auto &names = scheme.GetSchemeNames();
 
-    std::vector<size_t> column_indexes(names.size());
-    std::iota(column_indexes.begin(), column_indexes.end(), 0);
-
-    Scanner scanner(column_indexes, reader_);
+    IOScanner scanner(scheme, reader_);
     CSVWriter result_writer(result_name);
 
     while (!scanner.IsEnd()) {

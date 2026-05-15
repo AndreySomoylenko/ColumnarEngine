@@ -8,7 +8,7 @@
 #include "core/Engine.h"
 #include "io/CSVReader.h"
 #include "io/ColumnarReader.h"
-#include "io/Scanner.h"
+#include "io/IOScanner.h"
 
 namespace {
 
@@ -38,10 +38,12 @@ std::string NormalizeValue(const std::string &s) {
     return s;
 }
 
-std::vector<size_t> AllColumns(const ColumnarReader &reader) {
-    std::vector<size_t> columns(reader.GetScheme().GetSchemeNames().size());
-    std::iota(columns.begin(), columns.end(), 0);
-    return columns;
+Scheme AllColumns(const ColumnarReader &reader) {
+    Scheme result;
+    for (const auto &raw : reader.GetScheme().GiveRaws()) {
+        result.Add(raw);
+    }
+    return result;
 }
 
 } // namespace
@@ -70,8 +72,8 @@ TEST(HitsE2ETest, ConvertsRealHitsSampleAndReadsItBack) {
     Engine engine(data_path.string(), scheme_path.string(),
                   columnar_path.string());
     ColumnarReader reader(columnar_path.string());
-    std::vector<size_t> columns = AllColumns(reader);
-    Scanner scanner(columns, reader);
+    Scheme columns = AllColumns(reader);
+    IOScanner scanner(columns, reader);
 
     ASSERT_FALSE(scanner.IsEnd());
     Butch first_chunk = scanner.ReadNext();
@@ -108,8 +110,8 @@ TEST(HitsE2ETest, ConvertHitsSampleAndPrintStats) {
                   columnar_path.string());
 
     ColumnarReader reader(columnar_path.string());
-    std::vector<size_t> columns = AllColumns(reader);
-    Scanner scanner(columns, reader);
+    Scheme columns = AllColumns(reader);
+    IOScanner scanner(columns, reader);
     size_t total_rows = 0;
     while (!scanner.IsEnd()) {
         Butch chunk = scanner.ReadNext();

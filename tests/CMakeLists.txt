@@ -15,6 +15,7 @@ add_executable(columnar_tests
     io/test_columnar_io.cpp
     io/test_csv_io.cpp
     operations/test_aggregations.cpp
+    utils/test_hits_columns.cpp
     utils/test_string_converter.cpp
 )
 
