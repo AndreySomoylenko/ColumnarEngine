@@ -30,9 +30,9 @@ class Batch {
     GetRowLikeColumnVector(const size_t index) const;
     void PushColumnVector(const std::vector<std::shared_ptr<Column>> &row);
 
-    void SetEnabledColumns(std::optional<std::unordered_set<size_t>> &&enabled);
-    const std::optional<std::unordered_set<size_t>> &GetEnabledColumns() const;
-    std::optional<std::unordered_set<size_t>> &GetEnabledColumns();
+    void SetEnabledRaws(std::optional<std::unordered_set<size_t>> &&enabled);
+    const std::optional<std::unordered_set<size_t>> &GetEnabledRaws() const;
+    std::optional<std::unordered_set<size_t>> &GetEnabledRaws();
     bool IsRowEnabled(size_t index) const;
 
     void Clear();

@@ -12,7 +12,7 @@
 #include <string_view>
 #include <unordered_set>
 
-using EnabledColumns = std::optional<std::unordered_set<size_t>>;
+using EnabledRaws = std::optional<std::unordered_set<size_t>>;
 
 namespace agg {
 
@@ -36,7 +36,7 @@ auto ReadValue(const std::shared_ptr<Column> &column, size_t i) {
 
 template <typename T, typename Compare>
 T Extremum(const std::shared_ptr<Column> &column,
-           const EnabledColumns &selected, const char *empty_error,
+           const EnabledRaws &selected, const char *empty_error,
            Compare compare) {
     if (column->Size() == 0) {
         throw std::invalid_argument(empty_error);
@@ -99,7 +99,7 @@ T Extremum(const std::shared_ptr<Column> &column,
 
 template <typename ReadT, typename ResultT>
 ResultT SumAs(const std::shared_ptr<Column> &column,
-              const EnabledColumns &selected = std::nullopt) {
+              const EnabledRaws &selected = std::nullopt) {
     ResultT sum = static_cast<ResultT>(0);
 
     if (selected.has_value()) {
@@ -119,7 +119,7 @@ ResultT SumAs(const std::shared_ptr<Column> &column,
 
 template <typename T>
 T Sum(const std::shared_ptr<Column> &column,
-      const EnabledColumns &selected = std::nullopt) {
+      const EnabledRaws &selected = std::nullopt) {
     if constexpr (std::same_as<T, __int128>) {
         return SumAs<int64_t, __int128>(column, selected);
     } else {
@@ -129,7 +129,7 @@ T Sum(const std::shared_ptr<Column> &column,
 
 template <typename T>
 T Min(const std::shared_ptr<Column> &column,
-      const EnabledColumns &selected = std::nullopt) {
+      const EnabledRaws &selected = std::nullopt) {
     return detail::Extremum<T>(column, selected,
                                "Cannot calculate min of empty column",
                                std::less<>{});
@@ -137,7 +137,7 @@ T Min(const std::shared_ptr<Column> &column,
 
 template <typename T>
 T Max(const std::shared_ptr<Column> &column,
-      const EnabledColumns &selected = std::nullopt) {
+      const EnabledRaws &selected = std::nullopt) {
     return detail::Extremum<T>(column, selected,
                                "Cannot calculate max of empty column",
                                std::greater<>{});
@@ -145,7 +145,7 @@ T Max(const std::shared_ptr<Column> &column,
 
 template <typename T>
 double Avg(const std::shared_ptr<Column> &column,
-           const EnabledColumns &selected = std::nullopt) {
+           const EnabledRaws &selected = std::nullopt) {
     if (column->Size() == 0) {
         throw std::invalid_argument("Cannot calculate average of empty column");
     }
@@ -161,7 +161,7 @@ double Avg(const std::shared_ptr<Column> &column,
 template <typename T, typename Hash, typename KeyEqual, typename Allocator>
 void CountDistinct(const std::shared_ptr<Column> &column,
                    std::unordered_set<T, Hash, KeyEqual, Allocator> &answer,
-                   const EnabledColumns &selected = std::nullopt) {
+                   const EnabledRaws &selected = std::nullopt) {
 
     if (selected.has_value()) {
 
@@ -190,7 +190,7 @@ void CountDistinct(const std::shared_ptr<Column> &column,
 }
 
 inline uint64_t Count(const std::shared_ptr<Column> &column,
-                      const EnabledColumns &selected = std::nullopt) {
+                      const EnabledRaws &selected = std::nullopt) {
     if (selected.has_value()) {
         return selected->size();
     }

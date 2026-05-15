@@ -141,17 +141,17 @@ void Batch::RemoveColumn(size_t index) {
     scheme_.RemoveColumn(index);
 }
 
-void Batch::SetEnabledColumns(
+void Batch::SetEnabledRaws(
     std::optional<std::unordered_set<size_t>> &&enabled) {
     enabled_ = std::move(enabled);
 }
 
 const std::optional<std::unordered_set<size_t>> &
-Batch::GetEnabledColumns() const {
+Batch::GetEnabledRaws() const {
     return enabled_;
 }
 
-std::optional<std::unordered_set<size_t>> &Batch::GetEnabledColumns() {
+std::optional<std::unordered_set<size_t>> &Batch::GetEnabledRaws() {
     return enabled_;
 }
 

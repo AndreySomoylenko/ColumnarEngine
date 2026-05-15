@@ -20,7 +20,7 @@
 #include <variant>
 #include <vector>
 
-using EnabledColumns = std::optional<std::unordered_set<size_t>>;
+using EnabledRaws = std::optional<std::unordered_set<size_t>>;
 
 namespace {
 
@@ -422,7 +422,7 @@ std::string ExtractDomain(std::string_view url) {
 
 template <typename T>
 void UpdateMax(ResultAggVariant &result, const std::shared_ptr<Column> &column,
-               const EnabledColumns &enabled) {
+               const EnabledRaws &enabled) {
     T value = agg::Max<T>(column, enabled);
 
     if (auto *current = std::get_if<T>(&result)) {
@@ -434,7 +434,7 @@ void UpdateMax(ResultAggVariant &result, const std::shared_ptr<Column> &column,
 
 template <typename T>
 void UpdateMin(ResultAggVariant &result, const std::shared_ptr<Column> &column,
-               const EnabledColumns &enabled) {
+               const EnabledRaws &enabled) {
     T value = agg::Min<T>(column, enabled);
 
     if (auto *current = std::get_if<T>(&result)) {
@@ -498,7 +498,7 @@ Aggregation MakeAggregation(std::vector<AggTask> &&tasks) {
 }
 
 void ProcessExtremeAgg(const std::shared_ptr<Column> &column,
-                       const EnabledColumns &enabled, ColumnTypes column_type,
+                       const EnabledRaws &enabled, ColumnTypes column_type,
                        std::vector<ResultAggVariant> &results_, size_t i,
                        AggType agg_type) {
     switch (agg_type) {
@@ -551,7 +551,7 @@ void ProcessExtremeAgg(const std::shared_ptr<Column> &column,
 
 template <typename T>
 void UpdateSum(ResultAggVariant &result, const std::shared_ptr<Column> &column,
-               const EnabledColumns &enabled) {
+               const EnabledRaws &enabled) {
     if (auto *current = std::get_if<T>(&result)) {
         *current += agg::Sum<T>(column, enabled);
     } else {
@@ -562,7 +562,7 @@ void UpdateSum(ResultAggVariant &result, const std::shared_ptr<Column> &column,
 template <typename ReadT, typename ResultT>
 void UpdateSumAs(ResultAggVariant &result,
                  const std::shared_ptr<Column> &column,
-                 const EnabledColumns &enabled) {
+                 const EnabledRaws &enabled) {
     if (auto *current = std::get_if<ResultT>(&result)) {
         *current += agg::SumAs<ReadT, ResultT>(column, enabled);
     } else {
@@ -571,7 +571,7 @@ void UpdateSumAs(ResultAggVariant &result,
 }
 
 void ProcessSumAgg(const std::shared_ptr<Column> &column,
-                   const EnabledColumns &enabled, ColumnTypes column_type,
+                   const EnabledRaws &enabled, ColumnTypes column_type,
                    std::vector<ResultAggVariant> &results_, size_t i) {
     switch (column_type) {
     case ColumnTypes::Int16:
@@ -591,7 +591,7 @@ void ProcessSumAgg(const std::shared_ptr<Column> &column,
 
 template <typename T>
 void UpdateAgg(ResultAggVariant &result, const std::shared_ptr<Column> &column,
-               const EnabledColumns &enabled) {
+               const EnabledRaws &enabled) {
     if (auto *current = std::get_if<std::pair<T, size_t>>(&result)) {
         (*current).first += agg::Sum<T>(column, enabled);
         (*current).second +=
@@ -606,7 +606,7 @@ void UpdateAgg(ResultAggVariant &result, const std::shared_ptr<Column> &column,
 template <typename ReadT, typename ResultT>
 void UpdateAggAs(ResultAggVariant &result,
                  const std::shared_ptr<Column> &column,
-                 const EnabledColumns &enabled) {
+                 const EnabledRaws &enabled) {
     if (auto *current = std::get_if<std::pair<ResultT, size_t>>(&result)) {
         (*current).first += agg::SumAs<ReadT, ResultT>(column, enabled);
         (*current).second +=
@@ -619,7 +619,7 @@ void UpdateAggAs(ResultAggVariant &result,
 }
 
 void ProcessAvgAgg(const std::shared_ptr<Column> &column,
-                   const EnabledColumns &enabled, ColumnTypes column_type,
+                   const EnabledRaws &enabled, ColumnTypes column_type,
                    std::vector<ResultAggVariant> &results_, size_t i) {
     switch (column_type) {
     case ColumnTypes::Int16:
@@ -640,7 +640,7 @@ void ProcessAvgAgg(const std::shared_ptr<Column> &column,
 template <typename T, typename SetT = std::unordered_set<T>>
 void UpdateDistinct(ResultAggVariant &result,
                     const std::shared_ptr<Column> &column,
-                    const EnabledColumns &enabled) {
+                    const EnabledRaws &enabled) {
 
     if (!std::holds_alternative<SetT>(result)) {
         result = SetT{};
@@ -651,7 +651,7 @@ void UpdateDistinct(ResultAggVariant &result,
 }
 
 void ProcessCountDistinctAgg(const std::shared_ptr<Column> &column,
-                             const EnabledColumns &enabled,
+                             const EnabledRaws &enabled,
                              ColumnTypes column_type,
                              std::vector<ResultAggVariant> &results_,
                              size_t i) {
@@ -685,7 +685,7 @@ void Aggregation::Process(const Batch &batch) {
         ColumnTypes column_type =
             batch.GetColumn(task.column_index)->GetColumnType();
         auto column = batch.GetColumn(task.column_index);
-        auto enabled = batch.GetEnabledColumns();
+        auto enabled = batch.GetEnabledRaws();
         column_active_size_[i] +=
             (enabled.has_value() ? enabled->size() : column->Size());
         switch (task.agg_type) {
@@ -971,7 +971,7 @@ Filter MakeFilter(std::vector<FilterTask> &&conditions) {
 }
 
 void Filter::Execute(Batch &batch) {
-    auto enabled = static_cast<const Batch &>(batch).GetEnabledColumns();
+    auto enabled = static_cast<const Batch &>(batch).GetEnabledRaws();
     for (auto &task : conditions_) {
         std::unordered_set<size_t> next_enabled;
 
@@ -992,7 +992,7 @@ void Filter::Execute(Batch &batch) {
         enabled = std::move(next_enabled);
     }
 
-    batch.SetEnabledColumns(std::move(enabled));
+    batch.SetEnabledRaws(std::move(enabled));
 }
 
 TopK::TopK(std::vector<size_t> &&column_indices, size_t k,
@@ -1033,8 +1033,8 @@ TopK MakeTopK(std::vector<size_t> &&column_indices, size_t k,
 }
 
 void TopK::Process(const Batch &batch) {
-    if (batch.GetEnabledColumns().has_value()) {
-        for (auto &ind : batch.GetEnabledColumns().value()) {
+    if (batch.GetEnabledRaws().has_value()) {
+        for (auto &ind : batch.GetEnabledRaws().value()) {
             ans_.insert(batch.GetRowLikeColumnVector(ind));
             if (ans_.size() > k_) {
                 ans_.erase(std::prev(ans_.end()));
@@ -1401,7 +1401,7 @@ std::string BuildKey(const Batch &batch,
 }
 
 void GroupBy::Process(const Batch &batch) {
-    auto enabled = batch.GetEnabledColumns();
+    auto enabled = batch.GetEnabledRaws();
     if (enabled.has_value()) {
         for (auto &ind : enabled.value()) {
             UpdateKeyValue(ind, result_, task_, batch);

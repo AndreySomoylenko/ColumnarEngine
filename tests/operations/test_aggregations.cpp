@@ -103,7 +103,7 @@ TEST(AggregationTest, EmptyColumnThrowsForMinMaxAndAvg) {
 
 TEST(AggregationTest, AvgThrowsForEmptyEnabledSelection) {
     auto column = MakeIntColumn({"1", "2"});
-    EnabledColumns selected = std::unordered_set<size_t>{};
+    EnabledRaws selected = std::unordered_set<size_t>{};
 
     EXPECT_THROW((void)agg::Avg<__int128>(column, selected),
                  std::invalid_argument);
@@ -215,7 +215,7 @@ TEST(FilterTest, SelectsRowsFromUnfilteredBatch) {
 
     filter.Execute(batch);
 
-    ASSERT_TRUE(batch.GetEnabledColumns().has_value());
+    ASSERT_TRUE(batch.GetEnabledRaws().has_value());
     EXPECT_FALSE(batch.IsRowEnabled(0));
     EXPECT_TRUE(batch.IsRowEnabled(1));
     EXPECT_TRUE(batch.IsRowEnabled(2));
@@ -245,7 +245,7 @@ TEST(FilterTest, IntersectsMultipleConditionsWithoutDroppingColumns) {
 
     filter.Execute(batch);
 
-    ASSERT_TRUE(batch.GetEnabledColumns().has_value());
+    ASSERT_TRUE(batch.GetEnabledRaws().has_value());
     EXPECT_FALSE(batch.IsRowEnabled(0));
     EXPECT_TRUE(batch.IsRowEnabled(1));
     EXPECT_TRUE(batch.IsRowEnabled(2));
@@ -265,7 +265,7 @@ TEST(FilterTest, CanSelectNoRows) {
 
     filter.Execute(batch);
 
-    ASSERT_TRUE(batch.GetEnabledColumns().has_value());
+    ASSERT_TRUE(batch.GetEnabledRaws().has_value());
     EXPECT_FALSE(batch.IsRowEnabled(0));
     EXPECT_FALSE(batch.IsRowEnabled(1));
 }
