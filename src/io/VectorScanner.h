@@ -10,5 +10,5 @@ class VectorScanner : public ButchScanner {
     bool IsEnd() const override;
 
   private:
-    const std::vector<Butch> &butches_;
+    std::vector<Butch> butches_;
 };
