@@ -1,5 +1,18 @@
 #include "MetaData.h"
 
-size_t MetaData::GetColumnIndexByName(const std::string &name) const {
-    return scheme.GetColumnIndexByName(name);
+std::string MetaData::GetColumnNameByIndex(size_t index) const {
+    if (index >= column_numbers) {
+        throw std::out_of_range("Incorrect column index");
+    }
+
+    auto names = scheme.GetSchemeNames();
+    return names[index];
+}
+
+ColumnTypes MetaData::GetColumnTypeByIndex(size_t index) const {
+    if (index >= column_numbers) {
+        throw std::out_of_range("Incorrect column index");
+    }
+
+    return scheme.GetSchemeTypes()[index];
 }

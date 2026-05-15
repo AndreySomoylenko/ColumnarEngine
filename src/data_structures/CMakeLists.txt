@@ -1,7 +1,7 @@
 add_library(columnar_data_structures
 ByteVector.cpp
 Column.cpp
-Batch.cpp
+Butch.cpp
 Scheme.cpp
 Metadata.cpp
 )

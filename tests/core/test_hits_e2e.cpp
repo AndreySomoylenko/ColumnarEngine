@@ -8,7 +8,7 @@
 #include "core/Engine.h"
 #include "io/CSVReader.h"
 #include "io/ColumnarReader.h"
-#include "io/IOScanner.h"
+#include "io/Scanner.h"
 
 namespace {
 
@@ -24,9 +24,9 @@ std::filesystem::path EnvPathOrDefault(const char *name, const char *fallback) {
     return fallback;
 }
 
-Row ReadFirstRow(const std::filesystem::path &path) {
+Raw ReadFirstRow(const std::filesystem::path &path) {
     CSVReader reader(path.string());
-    Row row;
+    Raw row;
     reader.ReadNext(row);
     return row;
 }
@@ -38,12 +38,10 @@ std::string NormalizeValue(const std::string &s) {
     return s;
 }
 
-Scheme AllColumns(const ColumnarReader &reader) {
-    Scheme result;
-    for (const auto &row : reader.GetScheme().GiveRows()) {
-        result.Add(row);
-    }
-    return result;
+std::vector<size_t> AllColumns(const ColumnarReader &reader) {
+    std::vector<size_t> columns(reader.GetScheme().GetSchemeNames().size());
+    std::iota(columns.begin(), columns.end(), 0);
+    return columns;
 }
 
 } // namespace
@@ -67,21 +65,21 @@ TEST(HitsE2ETest, ConvertsRealHitsSampleAndReadsItBack) {
     std::filesystem::create_directories(temp_dir);
 
     const auto columnar_path = temp_dir / "hits_sample.hub";
-    const Row expected_first_row = ReadFirstRow(data_path);
+    const Raw expected_first_row = ReadFirstRow(data_path);
 
     Engine engine(data_path.string(), scheme_path.string(),
                   columnar_path.string());
     ColumnarReader reader(columnar_path.string());
-    Scheme columns = AllColumns(reader);
-    IOScanner scanner(columns, reader);
+    std::vector<size_t> columns = AllColumns(reader);
+    Scanner scanner(columns, reader);
 
     ASSERT_FALSE(scanner.IsEnd());
-    Batch first_chunk = scanner.ReadNext();
+    Butch first_chunk = scanner.ReadNext();
 
     EXPECT_EQ(reader.GetScheme().GetSchemeNames().size(),
               expected_first_row.size());
     ASSERT_GT(first_chunk.VerticalSize(), 0U);
-    EXPECT_EQ(first_chunk.GetRow(0), expected_first_row);
+    EXPECT_EQ(first_chunk.GetRaw(0), expected_first_row);
 
     std::filesystem::remove_all(temp_dir, ec);
 }
@@ -110,11 +108,11 @@ TEST(HitsE2ETest, ConvertHitsSampleAndPrintStats) {
                   columnar_path.string());
 
     ColumnarReader reader(columnar_path.string());
-    Scheme columns = AllColumns(reader);
-    IOScanner scanner(columns, reader);
+    std::vector<size_t> columns = AllColumns(reader);
+    Scanner scanner(columns, reader);
     size_t total_rows = 0;
     while (!scanner.IsEnd()) {
-        Batch chunk = scanner.ReadNext();
+        Butch chunk = scanner.ReadNext();
         total_rows += chunk.VerticalSize();
     }
 
@@ -160,7 +158,7 @@ TEST(HitsE2ETest, RoundTripCsvToHubToCsvMatches) {
     CSVReader original_reader(data_path.string());
     CSVReader output_reader(output_csv_path.string());
 
-    Row original_row, output_row;
+    Raw original_row, output_row;
     size_t row_count = 0;
     const size_t max_rows_to_check =
         1000; // Check first 1000 rows for performance

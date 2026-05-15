@@ -6,11 +6,11 @@
 
 #include <gtest/gtest.h>
 
-#include "data_structures/Batch.h"
+#include "data_structures/Butch.h"
 #include "data_structures/Scheme.h"
 #include "io/ColumnarReader.h"
 #include "io/ColumnarWriter.h"
-#include "io/IOScanner.h"
+#include "io/Scanner.h"
 
 namespace {
 
@@ -39,22 +39,10 @@ class ColumnarIoTest : public ::testing::Test {
         return scheme;
     }
 
-    Scheme Project(const Scheme &scheme,
-                   std::initializer_list<size_t> indexes) const {
-        Scheme result;
-        const auto rows = scheme.GiveRows();
-        for (size_t index : indexes) {
-            result.Add(rows[index]);
-        }
-        return result;
-    }
-
-    Scheme AllColumns(const Scheme &scheme) const {
-        Scheme result;
-        for (const auto &row : scheme.GiveRows()) {
-            result.Add(row);
-        }
-        return result;
+    std::vector<size_t> AllColumns(const Scheme &scheme) const {
+        std::vector<size_t> columns(scheme.GetSchemeNames().size());
+        std::iota(columns.begin(), columns.end(), 0);
+        return columns;
     }
 
     std::filesystem::path temp_dir_;
@@ -65,12 +53,12 @@ class ColumnarIoTest : public ::testing::Test {
 TEST_F(ColumnarIoTest, WritesAndReadsMultipleChunksWithScheme) {
     Scheme scheme = MakeScheme();
 
-    Batch first(scheme, false);
-    first.AddRow({"1", "Alice", "abc"});
-    first.AddRow({"2", "Bob", ""});
+    Butch first(AllColumns(scheme), scheme, false);
+    first.AddRaw({"1", "Alice", "abc"});
+    first.AddRaw({"2", "Bob", ""});
 
-    Batch second(scheme, false);
-    second.AddRow({"3", "Caroline", "longer payload"});
+    Butch second(AllColumns(scheme), scheme, false);
+    second.AddRaw({"3", "Caroline", "longer payload"});
 
     {
         ColumnarWriter writer(Path("data.hub").string());
@@ -81,29 +69,29 @@ TEST_F(ColumnarIoTest, WritesAndReadsMultipleChunksWithScheme) {
 
     ColumnarReader reader(Path("data.hub").string());
 
-    EXPECT_EQ(reader.GetScheme().GiveRows(),
-              (std::vector<Row>{{"id", "int64"},
+    EXPECT_EQ(reader.GetScheme().GiveRaws(),
+              (std::vector<Raw>{{"id", "int64"},
                                 {"name", "string"},
                                 {"payload", "unknown"}}));
-    Scheme columns = AllColumns(reader.GetScheme());
-    IOScanner scanner(columns, reader);
+    std::vector<size_t> columns = AllColumns(reader.GetScheme());
+    Scanner scanner(columns, reader);
     EXPECT_FALSE(scanner.IsEnd());
 
-    Batch read_first = scanner.ReadNext();
+    Butch read_first = scanner.ReadNext();
     EXPECT_EQ(read_first.HorizontalSize(), 3U);
     EXPECT_EQ(read_first.VerticalSize(), 2U);
-    EXPECT_EQ(read_first.GetRow(0), (Row{"1", "Alice", "abc"}));
-    EXPECT_EQ(read_first.GetRow(1), (Row{"2", "Bob", ""}));
+    EXPECT_EQ(read_first.GetRaw(0), (Raw{"1", "Alice", "abc"}));
+    EXPECT_EQ(read_first.GetRaw(1), (Raw{"2", "Bob", ""}));
 
-    Batch read_second = scanner.ReadNext();
+    Butch read_second = scanner.ReadNext();
     EXPECT_EQ(read_second.VerticalSize(), 1U);
-    EXPECT_EQ(read_second.GetRow(0), (Row{"3", "Caroline", "longer payload"}));
+    EXPECT_EQ(read_second.GetRaw(0), (Raw{"3", "Caroline", "longer payload"}));
     EXPECT_TRUE(scanner.IsEnd());
     EXPECT_THROW(scanner.ReadNext(), std::out_of_range);
 
     scanner.Reset();
     EXPECT_FALSE(scanner.IsEnd());
-    EXPECT_EQ(scanner.ReadNext().GetRow(0), (Row{"1", "Alice", "abc"}));
+    EXPECT_EQ(scanner.ReadNext().GetRaw(0), (Raw{"1", "Alice", "abc"}));
 }
 
 TEST_F(ColumnarIoTest, SupportsStringOnlySchemas) {
@@ -111,49 +99,49 @@ TEST_F(ColumnarIoTest, SupportsStringOnlySchemas) {
     scheme.Add({"first", "string"});
     scheme.Add({"second", "string"});
 
-    Batch batch(scheme, false);
-    batch.AddRow({"abc", "de"});
-    batch.AddRow({"", "a longer value"});
+    Butch butch(AllColumns(scheme), scheme, false);
+    butch.AddRaw({"abc", "de"});
+    butch.AddRaw({"", "a longer value"});
 
     {
         ColumnarWriter writer(Path("strings.hub").string());
-        writer.WriteChunk(batch);
+        writer.WriteChunk(butch);
         writer.Close(scheme);
     }
 
     ColumnarReader reader(Path("strings.hub").string());
-    Scheme columns = AllColumns(reader.GetScheme());
-    IOScanner scanner(columns, reader);
-    Batch read = scanner.ReadNext();
+    std::vector<size_t> columns = AllColumns(reader.GetScheme());
+    Scanner scanner(columns, reader);
+    Butch read = scanner.ReadNext();
 
     EXPECT_EQ(read.VerticalSize(), 2U);
-    EXPECT_EQ(read.GetRow(0), (Row{"abc", "de"}));
-    EXPECT_EQ(read.GetRow(1), (Row{"", "a longer value"}));
+    EXPECT_EQ(read.GetRaw(0), (Raw{"abc", "de"}));
+    EXPECT_EQ(read.GetRaw(1), (Raw{"", "a longer value"}));
 }
 
 TEST_F(ColumnarIoTest, ScannerReadsSelectedColumnsOnly) {
     Scheme scheme = MakeScheme();
 
-    Batch batch(scheme, false);
-    batch.AddRow({"1", "Alice", "abc"});
-    batch.AddRow({"2", "Bob", "payload"});
+    Butch butch(AllColumns(scheme), scheme, false);
+    butch.AddRaw({"1", "Alice", "abc"});
+    butch.AddRaw({"2", "Bob", "payload"});
 
     {
         ColumnarWriter writer(Path("projected.hub").string());
-        writer.WriteChunk(batch);
+        writer.WriteChunk(butch);
         writer.Close(scheme);
     }
 
     ColumnarReader reader(Path("projected.hub").string());
-    Scheme columns = Project(reader.GetScheme(), {1, 2});
-    IOScanner scanner(columns, reader);
+    std::vector<size_t> columns{1, 2};
+    Scanner scanner(columns, reader);
 
-    Batch read = scanner.ReadNext();
+    Butch read = scanner.ReadNext();
 
     EXPECT_EQ(read.HorizontalSize(), 2U);
     EXPECT_EQ(read.VerticalSize(), 2U);
-    EXPECT_EQ(read.GetRow(0), (Row{"Alice", "abc"}));
-    EXPECT_EQ(read.GetRow(1), (Row{"Bob", "payload"}));
+    EXPECT_EQ(read.GetRaw(0), (Raw{"Alice", "abc"}));
+    EXPECT_EQ(read.GetRaw(1), (Raw{"Bob", "payload"}));
     EXPECT_TRUE(scanner.IsEnd());
 }
 
@@ -164,47 +152,47 @@ TEST_F(ColumnarIoTest, ReadsAndWritesTimestampColumns) {
     scheme.Add({"event_date", "date"});
     scheme.Add({"name", "string"});
 
-    Batch batch(scheme, false);
-    batch.AddRow({"1", "2013-07-14 20:38:47", "2013-07-15", "Alice"});
-    batch.AddRow({"2", "1971-01-01 14:16:06", "1971-01-01", "Bob"});
+    Butch butch(AllColumns(scheme), scheme, false);
+    butch.AddRaw({"1", "2013-07-14 20:38:47", "2013-07-15", "Alice"});
+    butch.AddRaw({"2", "1971-01-01 14:16:06", "1971-01-01", "Bob"});
 
     {
         ColumnarWriter writer(Path("timestamps.hub").string());
-        writer.WriteChunk(batch);
+        writer.WriteChunk(butch);
         writer.Close(scheme);
     }
 
     ColumnarReader reader(Path("timestamps.hub").string());
-    EXPECT_EQ(reader.GetScheme().GiveRows(),
-              (std::vector<Row>{{"id", "int64"},
+    EXPECT_EQ(reader.GetScheme().GiveRaws(),
+              (std::vector<Raw>{{"id", "int64"},
                                 {"created_at", "timestamp"},
                                 {"event_date", "date"},
                                 {"name", "string"}}));
 
-    Scheme all_columns = AllColumns(reader.GetScheme());
-    IOScanner all_scanner(all_columns, reader);
-    Batch all_read = all_scanner.ReadNext();
+    std::vector<size_t> all_columns = AllColumns(reader.GetScheme());
+    Scanner all_scanner(all_columns, reader);
+    Butch all_read = all_scanner.ReadNext();
 
-    EXPECT_EQ(all_read.GetRow(0),
-              (Row{"1", "2013-07-14 20:38:47", "2013-07-15", "Alice"}));
-    EXPECT_EQ(all_read.GetRow(1),
-              (Row{"2", "1971-01-01 14:16:06", "1971-01-01", "Bob"}));
+    EXPECT_EQ(all_read.GetRaw(0),
+              (Raw{"1", "2013-07-14 20:38:47", "2013-07-15", "Alice"}));
+    EXPECT_EQ(all_read.GetRaw(1),
+              (Raw{"2", "1971-01-01 14:16:06", "1971-01-01", "Bob"}));
 
-    Scheme timestamp_column = Project(reader.GetScheme(), {1});
-    IOScanner timestamp_scanner(timestamp_column, reader);
-    Batch timestamp_read = timestamp_scanner.ReadNext();
+    std::vector<size_t> timestamp_column{1};
+    Scanner timestamp_scanner(timestamp_column, reader);
+    Butch timestamp_read = timestamp_scanner.ReadNext();
 
     EXPECT_EQ(timestamp_read.HorizontalSize(), 1U);
-    EXPECT_EQ(timestamp_read.GetRow(0), (Row{"2013-07-14 20:38:47"}));
-    EXPECT_EQ(timestamp_read.GetRow(1), (Row{"1971-01-01 14:16:06"}));
+    EXPECT_EQ(timestamp_read.GetRaw(0), (Raw{"2013-07-14 20:38:47"}));
+    EXPECT_EQ(timestamp_read.GetRaw(1), (Raw{"1971-01-01 14:16:06"}));
 
-    Scheme date_column = Project(reader.GetScheme(), {2});
-    IOScanner date_scanner(date_column, reader);
-    Batch date_read = date_scanner.ReadNext();
+    std::vector<size_t> date_column{2};
+    Scanner date_scanner(date_column, reader);
+    Butch date_read = date_scanner.ReadNext();
 
     EXPECT_EQ(date_read.HorizontalSize(), 1U);
-    EXPECT_EQ(date_read.GetRow(0), (Row{"2013-07-15"}));
-    EXPECT_EQ(date_read.GetRow(1), (Row{"1971-01-01"}));
+    EXPECT_EQ(date_read.GetRaw(0), (Raw{"2013-07-15"}));
+    EXPECT_EQ(date_read.GetRaw(1), (Raw{"1971-01-01"}));
 }
 
 TEST_F(ColumnarIoTest, ThrowsForMissingFilesAndUnwritableDestinations) {

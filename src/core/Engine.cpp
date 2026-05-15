@@ -1,12 +1,13 @@
 #include "Engine.h"
-#include "data_structures/Batch.h"
+#include "data_structures/Butch.h"
 #include "data_structures/Scheme.h"
 #include "io/CSVReader.h"
 #include "io/CSVWriter.h"
 #include "io/ColumnarReader.h"
 #include "io/ColumnarWriter.h"
-#include "io/IOScanner.h"
+#include "io/Scanner.h"
 #include <filesystem>
+#include <numeric>
 
 Engine::Engine(const Filename &data, const Filename &scheme,
                const Filename &columnar) {
@@ -14,7 +15,7 @@ Engine::Engine(const Filename &data, const Filename &scheme,
 
     Scheme t_scheme;
 
-    Row cur;
+    Raw cur;
 
     while (!scheme_reader.IsEnd()) {
         scheme_reader.ReadNext(cur);
@@ -24,7 +25,11 @@ Engine::Engine(const Filename &data, const Filename &scheme,
         t_scheme.Add(cur);
     }
 
-    Batch tmp(t_scheme);
+    std::vector<size_t> column_indexes(t_scheme.GetSchemeNames().size());
+
+    std::iota(column_indexes.begin(), column_indexes.end(), 0);
+
+    Butch tmp(std::move(column_indexes), t_scheme);
 
     CSVReader data_reader(data);
 
@@ -45,7 +50,7 @@ Engine::Engine(const Filename &data, const Filename &scheme,
             writer.WriteChunk(tmp);
             tmp.Clear();
         }
-        tmp.AddRow(cur);
+        tmp.AddRaw(cur);
     }
 
     if (tmp.VerticalSize() != 0) {
@@ -62,14 +67,18 @@ Engine::Engine(const Filename &columnar) : reader_(columnar) {}
 
 void Engine::TakeAll(const Filename &result_name) {
     const Scheme &scheme = reader_.GetScheme();
+    const auto &names = scheme.GetSchemeNames();
 
-    IOScanner scanner(scheme, reader_);
+    std::vector<size_t> column_indexes(names.size());
+    std::iota(column_indexes.begin(), column_indexes.end(), 0);
+
+    Scanner scanner(column_indexes, reader_);
     CSVWriter result_writer(result_name);
 
     while (!scanner.IsEnd()) {
-        Batch chunk = scanner.ReadNext();
+        Butch chunk = scanner.ReadNext();
         for (size_t row = 0; row < chunk.VerticalSize(); ++row) {
-            result_writer.WriteRow(chunk.GetRow(row));
+            result_writer.WriteRaw(chunk.GetRaw(row));
         }
     }
 
@@ -78,7 +87,7 @@ void Engine::TakeAll(const Filename &result_name) {
         result_path.parent_path() /
         ("scheme_" + result_path.filename().string());
     CSVWriter scheme_writer(scheme_path.string());
-    for (const Row &row : scheme.GiveRows()) {
-        scheme_writer.WriteRow(row);
+    for (const Raw &row : scheme.GiveRaws()) {
+        scheme_writer.WriteRaw(row);
     }
 }

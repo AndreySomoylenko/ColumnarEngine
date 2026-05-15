@@ -5,13 +5,13 @@
 #include <string>
 #include <vector>
 
-using Row = std::vector<std::string>;
+using Raw = std::vector<std::string>;
 
 class CSVWriter {
   public:
     CSVWriter(const std::string &filename, char sep = ',');
 
-    void WriteRow(const Row &row);
+    void WriteRaw(const Raw &raw);
 
     ~CSVWriter();
 

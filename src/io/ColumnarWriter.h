@@ -1,6 +1,6 @@
 #pragma once
 
-#include "data_structures/Batch.h"
+#include "data_structures/Butch.h"
 #include <array>
 #include <fstream>
 #include <vector>
@@ -8,7 +8,7 @@
 class ColumnarWriter {
   public:
     ColumnarWriter(const std::string &filename);
-    void WriteChunk(const Batch &batch);
+    void WriteChunk(const Butch &butch);
     void Close(const Scheme &scheme);
 
   private:

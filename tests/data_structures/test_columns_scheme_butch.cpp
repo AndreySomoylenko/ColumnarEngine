@@ -5,7 +5,7 @@
 
 #include <gtest/gtest.h>
 
-#include "data_structures/Batch.h"
+#include "data_structures/Butch.h"
 #include "data_structures/Column.h"
 #include "data_structures/Scheme.h"
 
@@ -21,10 +21,10 @@ TEST(SchemeTest, AddsKnownAndUnknownColumnTypes) {
     EXPECT_EQ(scheme.GetSchemeNames(),
               (std::vector<std::string>{"id", "name", "created_at",
                                         "event_date", "payload"}));
-    EXPECT_EQ(
-        scheme.GetSchemeTypes(),
-        (std::vector<ColumnTypes>{Int64, String, Timestamp, Date, Unknown}));
-    EXPECT_EQ(scheme.GiveRows(), (std::vector<Row>{{"id", "int64"},
+    EXPECT_EQ(scheme.GetSchemeTypes(),
+              (std::vector<ColumnTypes>{Int64, String, Timestamp, Date,
+                                        Unknown}));
+    EXPECT_EQ(scheme.GiveRaws(), (std::vector<Raw>{{"id", "int64"},
                                                    {"name", "string"},
                                                    {"created_at", "timestamp"},
                                                    {"event_date", "date"},
@@ -44,22 +44,6 @@ TEST(SchemeTest, IgnoresExtraFieldsFromCsvSchemaFiles) {
 
     EXPECT_EQ(scheme.GetSchemeNames(), (std::vector<std::string>{"WatchID"}));
     EXPECT_EQ(scheme.GetSchemeTypes(), (std::vector<ColumnTypes>{Int64}));
-}
-
-TEST(SchemeTest, RemovesColumnAndRebuildsIndexes) {
-    Scheme scheme;
-    scheme.Add({"id", "int64"});
-    scheme.Add({"name", "string"});
-    scheme.Add({"score", "double"});
-
-    scheme.RemoveColumn(1);
-
-    EXPECT_EQ(scheme.GetSchemeNames(), (std::vector<std::string>{"id", "score"}));
-    EXPECT_EQ(scheme.GetSchemeTypes(), (std::vector<ColumnTypes>{Int64, Double}));
-    EXPECT_EQ(scheme.GetColumnIndexByName("score"), 1U);
-    EXPECT_EQ(scheme.GetColumnTypeByName("score"), Double);
-    EXPECT_THROW(scheme.GetColumnIndexByName("name"), std::invalid_argument);
-    EXPECT_THROW(scheme.RemoveColumn(2), std::out_of_range);
 }
 
 TEST(ColumnTest, Int64ColumnStoresSignedIntegersAndRejectsBadIndex) {
@@ -147,22 +131,7 @@ TEST(ColumnTest, ClearResetsColumnContents) {
     EXPECT_EQ(string_column.GetOffsets(), (std::vector<size_t>{0U}));
 }
 
-TEST(ColumnTest, ConstantConstructorsRepeatRawValue) {
-    int64_t int_value = 42;
-    Int64Column int_column(reinterpret_cast<const char *>(&int_value),
-                           sizeof(int_value), 3);
-
-    EXPECT_EQ(int_column.Size(), 3U);
-    EXPECT_EQ(int_column.ToString(0), "42");
-    EXPECT_EQ(int_column.ToString(2), "42");
-
-    StringColumn string_column("xy", 2, 2);
-    EXPECT_EQ(string_column.Size(), 2U);
-    EXPECT_EQ(string_column.ToString(0), "xy");
-    EXPECT_EQ(string_column.ToString(1), "xy");
-}
-
-TEST(BatchTest, BuildsColumnsFromSchemeAndReturnsRows) {
+TEST(ButchTest, BuildsColumnsFromSchemeAndReturnsRows) {
     Scheme scheme;
     scheme.Add({"id", "int64"});
     scheme.Add({"name", "string"});
@@ -170,89 +139,43 @@ TEST(BatchTest, BuildsColumnsFromSchemeAndReturnsRows) {
     scheme.Add({"event_date", "date"});
     scheme.Add({"note", "unknown"});
 
-    Batch batch(scheme, false);
-    batch.AddRow(
-        {"1", "Alice", "2013-07-14 20:38:47", "2013-07-15", "payload"});
-    batch.AddRow({"2", "Bob", "1971-01-01 14:16:06", "1971-01-01", ""});
+    std::vector<size_t> columns(scheme.GetSchemeNames().size());
+    std::iota(columns.begin(), columns.end(), 0);
+    Butch butch(columns, scheme, false);
+    butch.AddRaw({"1", "Alice", "2013-07-14 20:38:47", "2013-07-15",
+                  "payload"});
+    butch.AddRaw({"2", "Bob", "1971-01-01 14:16:06", "1971-01-01", ""});
 
-    EXPECT_TRUE(batch.EnableToPush());
-    EXPECT_EQ(batch.HorizontalSize(), 5U);
-    EXPECT_EQ(batch.VerticalSize(), 2U);
-    EXPECT_EQ(batch.GetRow(0), (Row{"1", "Alice", "2013-07-14 20:38:47",
-                                    "2013-07-15", "payload"}));
-    EXPECT_EQ(batch.GetRow(1),
-              (Row{"2", "Bob", "1971-01-01 14:16:06", "1971-01-01", ""}));
-    EXPECT_EQ(batch.GetColumns()[0]->GetColumnType(), Int64);
-    EXPECT_EQ(batch.GetColumns()[1]->GetColumnType(), String);
-    EXPECT_EQ(batch.GetColumns()[2]->GetColumnType(), Timestamp);
-    EXPECT_EQ(batch.GetColumns()[3]->GetColumnType(), Date);
-    EXPECT_EQ(batch.GetColumns()[4]->GetColumnType(), String);
+    EXPECT_TRUE(butch.EnableToPush());
+    EXPECT_EQ(butch.HorizontalSize(), 5U);
+    EXPECT_EQ(butch.VerticalSize(), 2U);
+    EXPECT_EQ(butch.GetRaw(0),
+              (Raw{"1", "Alice", "2013-07-14 20:38:47", "2013-07-15",
+                   "payload"}));
+    EXPECT_EQ(butch.GetRaw(1),
+              (Raw{"2", "Bob", "1971-01-01 14:16:06", "1971-01-01", ""}));
+    EXPECT_EQ(butch.GetColumns()[0]->GetColumnType(), Int64);
+    EXPECT_EQ(butch.GetColumns()[1]->GetColumnType(), String);
+    EXPECT_EQ(butch.GetColumns()[2]->GetColumnType(), Timestamp);
+    EXPECT_EQ(butch.GetColumns()[3]->GetColumnType(), Date);
+    EXPECT_EQ(butch.GetColumns()[4]->GetColumnType(), String);
 }
 
-TEST(BatchTest, RejectsRowsWithWrongWidthAndCanAddToSingleColumn) {
+TEST(ButchTest, RejectsRowsWithWrongWidthAndCanAddToSingleColumn) {
     Scheme scheme;
     scheme.Add({"id", "int64"});
     scheme.Add({"name", "string"});
 
-    Batch batch(scheme, false);
+    std::vector<size_t> columns(scheme.GetSchemeNames().size());
+    std::iota(columns.begin(), columns.end(), 0);
+    Butch butch(columns, scheme, false);
 
-    EXPECT_THROW(batch.AddRow({"1"}), std::invalid_argument);
+    EXPECT_THROW(butch.AddRaw({"1"}), std::invalid_argument);
 
-    batch.AddToColumn("7", 0);
-    batch.AddToColumn("Alice", 1);
-    EXPECT_EQ(batch.GetRow(0), (Row{"7", "Alice"}));
+    butch.AddToColumn("7", 0);
+    butch.AddToColumn("Alice", 1);
+    EXPECT_EQ(butch.GetRaw(0), (Raw{"7", "Alice"}));
 
-    batch.Clear();
-    EXPECT_EQ(batch.VerticalSize(), 0U);
-}
-
-TEST(BatchTest, CanAppendReadyColumnAndExtendScheme) {
-    Scheme scheme;
-    scheme.Add({"id", "int64"});
-
-    Batch batch(scheme, false);
-    batch.AddRow({"1"});
-    batch.AddRow({"2"});
-
-    int64_t value = 7;
-    auto constant = std::make_shared<Int64Column>(
-        reinterpret_cast<const char *>(&value), sizeof(value),
-        batch.VerticalSize());
-
-    batch.AddColumn(constant, ColumnTypes::Int64, "constant");
-
-    EXPECT_EQ(batch.HorizontalSize(), 2U);
-    EXPECT_EQ(batch.GetScheme().GetSchemeNames(),
-              (std::vector<std::string>{"id", "constant"}));
-    EXPECT_EQ(batch.GetRow(0), (Row{"1", "7"}));
-    EXPECT_EQ(batch.GetRow(1), (Row{"2", "7"}));
-
-    auto wrong_height = std::make_shared<Int64Column>(
-        reinterpret_cast<const char *>(&value), sizeof(value), 1);
-    EXPECT_THROW(batch.AddColumn(wrong_height, ColumnTypes::Int64, "bad"),
-                 std::invalid_argument);
-}
-
-TEST(BatchTest, RemovesColumnAndKeepsSchemeInSync) {
-    Scheme scheme;
-    scheme.Add({"id", "int64"});
-    scheme.Add({"name", "string"});
-    scheme.Add({"score", "double"});
-
-    Batch batch(scheme, false);
-    batch.AddRow({"1", "Alice", "10.5"});
-    batch.AddRow({"2", "Bob", "20.25"});
-
-    batch.RemoveColumn(1);
-
-    EXPECT_EQ(batch.HorizontalSize(), 2U);
-    EXPECT_EQ(batch.VerticalSize(), 2U);
-    EXPECT_EQ(batch.GetScheme().GetSchemeNames(),
-              (std::vector<std::string>{"id", "score"}));
-    EXPECT_EQ(batch.GetScheme().GetColumnIndexByName("score"), 1U);
-    EXPECT_EQ(batch.GetRow(0), (Row{"1", "10.500000"}));
-    EXPECT_EQ(batch.GetRow(1), (Row{"2", "20.250000"}));
-    EXPECT_THROW(batch.GetScheme().GetColumnIndexByName("name"),
-                 std::invalid_argument);
-    EXPECT_THROW(batch.RemoveColumn(2), std::out_of_range);
+    butch.Clear();
+    EXPECT_EQ(butch.VerticalSize(), 0U);
 }
