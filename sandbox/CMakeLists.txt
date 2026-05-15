@@ -1,4 +1,4 @@
-add_library(sandbox_app
+add_executable(sandbox_app
     main.cpp
 )
 
