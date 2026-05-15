@@ -5,8 +5,6 @@
 #include <stdexcept>
 
 ColumnarWriter::ColumnarWriter(const std::string &filename) {
-    os_.rdbuf()->pubsetbuf(io_buffer_.data(),
-                           static_cast<std::streamsize>(io_buffer_.size()));
     os_.open(filename, std::ios::binary | std::ios::out);
 
     if (!os_.good()) {

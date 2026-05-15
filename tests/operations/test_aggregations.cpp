@@ -143,7 +143,7 @@ TEST(AggregationOperationTest, ComputesMultipleAggregatesAcrossBatches) {
     std::vector<Row> rows = ReadRows(std::move(aggregation).Finalize());
 
     ASSERT_EQ(rows.size(), 1U);
-    EXPECT_EQ(rows[0], (Row{"100", "25.000000", "1", "4", "4", "3"}));
+    EXPECT_EQ(rows[0], (Row{"100", "25", "1", "4", "4", "3"}));
 }
 
 TEST(AggregationOperationTest, RespectsEnabledRowsFromFilter) {
@@ -487,8 +487,8 @@ TEST(GroupByTest, ComputesMultipleAggregatesPerGroup) {
     auto rows = RowsByFirstColumn(std::move(group_by).Finalize());
 
     ASSERT_EQ(rows.size(), 2U);
-    EXPECT_EQ(rows["1"], (Row{"1", "16", "3", "200.000000", "2"}));
-    EXPECT_EQ(rows["2"], (Row{"2", "8", "1", "400.000000", "1"}));
+    EXPECT_EQ(rows["1"], (Row{"1", "16", "3", "200", "2"}));
+    EXPECT_EQ(rows["2"], (Row{"2", "8", "1", "400", "1"}));
 }
 
 TEST(GroupByTest, AveragesAndKeepsDistinctStringKeyBoundaries) {
@@ -511,9 +511,9 @@ TEST(GroupByTest, AveragesAndKeepsDistinctStringKeyBoundaries) {
     }
 
     EXPECT_EQ(actual[std::make_pair(std::string("ab"), std::string("c"))],
-              "20.000000");
+              "20");
     EXPECT_EQ(actual[std::make_pair(std::string("a"), std::string("bc"))],
-              "20.000000");
+              "20");
 }
 
 TEST(GroupByTest, CountsDistinctValuesPerGroup) {

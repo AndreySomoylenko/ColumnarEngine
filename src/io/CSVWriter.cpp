@@ -4,8 +4,6 @@
 #include <stdexcept>
 
 CSVWriter::CSVWriter(const std::string &filename, char sep) : sep_(sep) {
-    os_.rdbuf()->pubsetbuf(io_buffer_.data(),
-                           static_cast<std::streamsize>(io_buffer_.size()));
     os_.open(filename, std::ios::binary | std::ios::out);
 
     if (!os_.good()) {
@@ -28,5 +26,7 @@ void CSVWriter::WriteRow(const Row &row) {
 
     os_.write(&n, 1);
 }
+
+void CSVWriter::Flush() { os_.flush(); }
 
 CSVWriter::~CSVWriter() { os_.close(); }

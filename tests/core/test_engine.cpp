@@ -1,5 +1,6 @@
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -7,7 +8,9 @@
 #include <gtest/gtest.h>
 
 #include "core/Engine.h"
+#include "core/Pipeline.h"
 #include "io/CSVReader.h"
+#include "operations/Operations.h"
 
 namespace {
 
@@ -89,4 +92,71 @@ TEST_F(EngineTest, OpensExistingColumnarFiles) {
     EXPECT_EQ(ReadCsv("reopened.csv"), (std::vector<Row>{{"10", "Ada"}}));
     EXPECT_EQ(ReadCsv("scheme_reopened.csv"),
               (std::vector<Row>{{"id", "int64"}, {"name", "string"}}));
+}
+
+TEST_F(EngineTest, PipelineStreamsUntilBlockingOperationAndWritesCsv) {
+    WriteText("scheme.csv", "\"id\",\"int64\"\n\"name\",\"string\"\n");
+    WriteText("data.csv", "\"1\",\"Ada\"\n\"2\",\"Bob\"\n\"3\",\"Cara\"\n");
+
+    Engine built("data.csv", "scheme.csv", "data.hub");
+    ColumnarReader reader("data.hub");
+
+    Scheme read_scheme;
+    read_scheme.Add({"id", "int64"});
+
+    std::vector<std::unique_ptr<Operation>> operations;
+    operations.emplace_back(std::make_unique<Filter>(
+        MakeFilter({MakeInt64GreaterFilter(0, 1)})));
+    operations.emplace_back(std::make_unique<Aggregation>(
+        MakeAggregation({MakeCountAgg(0, "rows")})));
+
+    Pipeline pipeline(std::move(operations), reader, read_scheme, "count.csv");
+    pipeline.Execute();
+
+    EXPECT_EQ(ReadCsv("count.csv"), (std::vector<Row>{{"2"}}));
+}
+
+TEST_F(EngineTest, ExecutesHitsCountAllQuery) {
+    WriteText("scheme.csv", "\"AdvEngineID\",\"int16\"\n");
+    WriteText("data.csv", "\"0\"\n\"2\"\n\"0\"\n\"5\"\n\"7\"\n\"1\"\n");
+
+    Engine engine("data.csv", "scheme.csv", "hits.hub");
+    ColumnarReader reader("hits.hub");
+
+    Scheme read_scheme;
+    read_scheme.Add({"AdvEngineID", "int16"});
+
+    std::vector<std::unique_ptr<Operation>> operations;
+    operations.emplace_back(std::make_unique<Aggregation>(
+        MakeAggregation({MakeCountAgg(0, "count")})));
+
+    Pipeline pipeline(std::move(operations), reader, read_scheme,
+                      "count_all.csv");
+    engine.Execute(pipeline);
+
+    EXPECT_EQ(ReadCsv("count_all.csv"), (std::vector<Row>{{"6"}}));
+}
+
+TEST_F(EngineTest, ExecutesHitsCountWhereAdvEngineIdIsNotZeroQuery) {
+    WriteText("scheme.csv", "\"AdvEngineID\",\"int16\"\n");
+    WriteText("data.csv", "\"0\"\n\"2\"\n\"0\"\n\"5\"\n\"7\"\n\"1\"\n");
+
+    Engine engine("data.csv", "scheme.csv", "hits.hub");
+    ColumnarReader reader("hits.hub");
+
+    Scheme read_scheme;
+    read_scheme.Add({"AdvEngineID", "int16"});
+
+    std::vector<std::unique_ptr<Operation>> operations;
+    operations.emplace_back(std::make_unique<Filter>(
+        MakeFilter({MakeInt64NotEqualFilter(0, 0)})));
+    operations.emplace_back(std::make_unique<Aggregation>(
+        MakeAggregation({MakeCountAgg(0, "count")})));
+
+    Pipeline pipeline(std::move(operations), reader, read_scheme,
+                      "count_adv_engine_id_not_zero.csv");
+    engine.Execute(pipeline);
+
+    EXPECT_EQ(ReadCsv("count_adv_engine_id_not_zero.csv"),
+              (std::vector<Row>{{"4"}}));
 }

@@ -25,7 +25,7 @@ class Batch {
     const std::vector<std::shared_ptr<Column>> &GetColumns() const;
     const std::shared_ptr<Column> &GetColumn(const size_t index) const;
 
-    Row GetRow(const size_t index);
+    Row GetRow(const size_t index) const;
     const std::vector<std::shared_ptr<Column>>
     GetRowLikeColumnVector(const size_t index) const;
     void PushColumnVector(const std::vector<std::shared_ptr<Column>> &row);

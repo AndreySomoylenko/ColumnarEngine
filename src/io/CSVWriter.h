@@ -1,6 +1,5 @@
 #pragma once
 
-#include <array>
 #include <fstream>
 #include <string>
 #include <vector>
@@ -12,12 +11,11 @@ class CSVWriter {
     CSVWriter(const std::string &filename, char sep = ',');
 
     void WriteRow(const Row &row);
+    void Flush();
 
     ~CSVWriter();
 
   private:
     std::ofstream os_;
     char sep_;
-    static constexpr std::size_t kIOBufferSize = 1 << 20;
-    std::array<char, kIOBufferSize> io_buffer_;
 };

@@ -95,7 +95,7 @@ void Batch::Clear() {
     }
 }
 
-Row Batch::GetRow(const size_t index) {
+Row Batch::GetRow(const size_t index) const {
     if (index >= VerticalSize()) {
         throw std::out_of_range("Incorrect row index");
     }

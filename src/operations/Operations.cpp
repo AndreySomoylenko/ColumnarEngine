@@ -107,6 +107,12 @@ int64_t ReadIntegerFilterValue(const char *data, size_t size) {
     throw std::invalid_argument("Expected integer value");
 }
 
+int64_t ReadIntegerColumnValue(const std::shared_ptr<Column> &column,
+                               size_t row_index) {
+    auto value = column->Get(row_index);
+    return ReadIntegerFilterValue(value.data, value.size);
+}
+
 int ParseFilterTwoDigits(const std::string &value, size_t pos) {
     if (pos + 1 >= value.size() || !std::isdigit(value[pos]) ||
         !std::isdigit(value[pos + 1])) {
@@ -238,7 +244,7 @@ ColumnTypes GroupByResultType(AggType agg_type, ColumnTypes column_type) {
     case AggType::CountDistinct:
         return ColumnTypes::Int64;
     case AggType::Avg:
-        return ColumnTypes::Double;
+        return ColumnTypes::Int128;
     case AggType::Sum:
         return column_type == ColumnTypes::Double ? ColumnTypes::Double
                                                   : ColumnTypes::Int128;
@@ -381,7 +387,7 @@ AggTask MakeCountDistinctAgg(size_t column_index, std::string alias) {
 }
 
 AggTask MakeAvgAgg(size_t column_index, std::string alias) {
-    return MakeAggTask(column_index, AggType::Avg, ColumnTypes::Double,
+    return MakeAggTask(column_index, AggType::Avg, ColumnTypes::Int128,
                        std::move(alias));
 }
 
@@ -640,7 +646,9 @@ size_t CountDistinctResultSize(const ResultAggVariant &result) {
 std::vector<Batch> Aggregation::Finalize() && {
     Scheme result_scheme;
     for (auto &task : tasks_) {
-        auto column_type = task.return_type;
+        auto column_type =
+            task.agg_type == AggType::Avg ? ColumnTypes::Int128
+                                          : task.return_type;
         result_scheme.Add({task.alias, GetNameByType(column_type)});
     }
 
@@ -663,9 +671,9 @@ std::vector<Batch> Aggregation::Finalize() && {
                     throw std::invalid_argument(
                         "Cannot calculate average of empty selection");
                 }
-                double avg = static_cast<double>(sum) / count;
+                __int128 avg = sum / static_cast<__int128>(count);
                 result.AddToColumn(reinterpret_cast<char *>(&avg),
-                                   sizeof(double), i);
+                                   sizeof(avg), i);
             } else if (auto *current = std::get_if<std::pair<double, size_t>>(
                            &results_[i])) {
                 auto &[sum, count] = *current;
@@ -673,9 +681,9 @@ std::vector<Batch> Aggregation::Finalize() && {
                     throw std::invalid_argument(
                         "Cannot calculate average of empty selection");
                 }
-                double avg = sum / count;
+                __int128 avg = static_cast<__int128>(sum / count);
                 result.AddToColumn(reinterpret_cast<char *>(&avg),
-                                   sizeof(double), i);
+                                   sizeof(avg), i);
             } else {
                 throw std::invalid_argument(
                     "Unsupported column type for average");
@@ -1390,7 +1398,8 @@ void WriteAggValueToResult(Batch &result, const ResultAggVariant &value,
                 throw std::invalid_argument(
                     "Cannot calculate average of empty group");
             }
-            double avg = static_cast<double>(current->first) / current->second;
+            __int128 avg =
+                current->first / static_cast<__int128>(current->second);
             result.AddToColumn(reinterpret_cast<const char *>(&avg),
                                sizeof(avg), column_index);
         } else if (auto *current =
@@ -1399,7 +1408,8 @@ void WriteAggValueToResult(Batch &result, const ResultAggVariant &value,
                 throw std::invalid_argument(
                     "Cannot calculate average of empty group");
             }
-            double avg = current->first / current->second;
+            __int128 avg =
+                static_cast<__int128>(current->first / current->second);
             result.AddToColumn(reinterpret_cast<const char *>(&avg),
                                sizeof(avg), column_index);
         } else {
@@ -1588,7 +1598,7 @@ ExpressionTask MakeAddInt64ConstantExpression(size_t column_index,
         std::move(alias), ColumnTypes::Int64,
         [column_index, value](const Batch &input, size_t row, Column &output) {
             int64_t result =
-                ReadColumnValue<int64_t>(input.GetColumn(column_index), row) +
+                ReadIntegerColumnValue(input.GetColumn(column_index), row) +
                 value;
             output.Push(reinterpret_cast<const char *>(&result),
                         sizeof(result));
@@ -1602,7 +1612,7 @@ ExpressionTask MakeSubInt64ConstantExpression(size_t column_index,
         std::move(alias), ColumnTypes::Int64,
         [column_index, value](const Batch &input, size_t row, Column &output) {
             int64_t result =
-                ReadColumnValue<int64_t>(input.GetColumn(column_index), row) -
+                ReadIntegerColumnValue(input.GetColumn(column_index), row) -
                 value;
             output.Push(reinterpret_cast<const char *>(&result),
                         sizeof(result));
@@ -1655,10 +1665,12 @@ ExpressionTask MakeCaseWhenBothZeroThenStringElseEmptyExpression(
         std::move(alias), ColumnTypes::String,
         [first_column_index, second_column_index,
          string_column_index](const Batch &input, size_t row, Column &output) {
-            int64_t first = ReadColumnValue<int64_t>(
-                input.GetColumn(first_column_index), row);
-            int64_t second = ReadColumnValue<int64_t>(
-                input.GetColumn(second_column_index), row);
+            int64_t first =
+                ReadIntegerColumnValue(input.GetColumn(first_column_index),
+                                       row);
+            int64_t second =
+                ReadIntegerColumnValue(input.GetColumn(second_column_index),
+                                       row);
             if (first == 0 && second == 0) {
                 auto value = input.GetColumn(string_column_index)->Get(row);
                 output.Push(value.data, value.size);

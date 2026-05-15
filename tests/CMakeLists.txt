@@ -10,6 +10,7 @@ FetchContent_MakeAvailable(googletest)
 add_executable(columnar_tests
     core/test_engine.cpp
     core/test_hits_e2e.cpp
+    core/test_projection_builder.cpp
     data_structures/test_byte_vector.cpp
     data_structures/test_columns_scheme_batch.cpp
     io/test_columnar_io.cpp

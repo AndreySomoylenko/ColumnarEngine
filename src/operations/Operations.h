@@ -150,7 +150,7 @@ SortKey MakeAscendingSortKey(size_t column_index);
 SortKey MakeDescendingSortKey(size_t column_index);
 
 struct CompareForTopK {
-    const std::vector<SortKey> &sort_keys;
+    std::vector<SortKey> sort_keys;
 
     explicit CompareForTopK(const std::vector<SortKey> &keys)
         : sort_keys(keys) {}

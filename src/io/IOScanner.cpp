@@ -4,6 +4,9 @@
 IOScanner::IOScanner(const Scheme &scheme, ColumnarReader &reader)
     : scheme_(scheme), reader_(reader) {}
 
+IOScanner::IOScanner(Scheme &&scheme, ColumnarReader &reader)
+    : scheme_(std::move(scheme)), reader_(reader) {}
+
 Batch IOScanner::ReadNext() {
     if (IsEnd()) {
         throw std::out_of_range("No more data to read");

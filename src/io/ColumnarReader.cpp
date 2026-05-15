@@ -42,8 +42,6 @@ ByteVector ReadByteVector(std::istream &is, size_t element_count,
 } // namespace
 
 ColumnarReader::ColumnarReader(const std::string &columnar) {
-    is_.rdbuf()->pubsetbuf(io_buffer_.data(),
-                           static_cast<std::streamsize>(io_buffer_.size()));
     is_.open(columnar, std::ios::binary);
 
     if (!is_.good()) {
@@ -145,13 +143,8 @@ Batch ColumnarReader::ReadNext(const Scheme &scheme, size_t &cur_index) {
 
         std::streamoff column_size;
         if (column_index + 1 == columns_count) {
-            if (cur_index == data_.chunk_metas.size() - 1) {
-                column_size =
-                    data_.meta_section_start - columns_starts[column_index];
-            } else {
-                column_size = data_.chunk_metas[cur_index + 1] -
-                              columns_starts[column_index];
-            }
+            column_size =
+                data_.chunk_metas[cur_index] - columns_starts[column_index];
         } else {
             column_size =
                 columns_starts[column_index + 1] - columns_starts[column_index];
