@@ -5,13 +5,13 @@
 #include <string>
 #include <vector>
 
-using Raw = std::vector<std::string>;
+using Row = std::vector<std::string>;
 
 class CSVReader {
   public:
     CSVReader(const std::string &filename, char sep = ',');
 
-    void ReadNext(Raw &raw);
+    void ReadNext(Row &row);
     bool IsEnd();
 
     ~CSVReader();

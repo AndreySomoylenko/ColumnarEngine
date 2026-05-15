@@ -2,14 +2,44 @@
 
 #include <cassert>
 #include <chrono>
+#include <cstdlib>
 #include <cstddef>
 #include <cstring>
-#include <iosfwd>
+#include <istream>
+#include <memory>
 #include <stdexcept>
 #include <string>
 
 #include "data_structures/ByteVector.h"
 #include "data_structures/Column.h"
+
+namespace {
+
+using OwnedBuffer = std::unique_ptr<void, decltype(&std::free)>;
+
+OwnedBuffer ReadBuffer(std::istream &is, size_t byte_count) {
+    OwnedBuffer buffer(nullptr, &std::free);
+    if (byte_count > 0) {
+        buffer.reset(std::malloc(byte_count));
+        if (buffer == nullptr) {
+            throw std::bad_alloc();
+        }
+    }
+
+    if (!is.read(static_cast<char *>(buffer.get()), byte_count)) {
+        throw std::invalid_argument("You give me really bad file");
+    }
+
+    return buffer;
+}
+
+ByteVector ReadByteVector(std::istream &is, size_t element_count,
+                          size_t byte_count) {
+    OwnedBuffer buffer = ReadBuffer(is, byte_count);
+    return ByteVector(element_count, byte_count, buffer.release());
+}
+
+} // namespace
 
 ColumnarReader::ColumnarReader(const std::string &columnar) {
     is_.rdbuf()->pubsetbuf(io_buffer_.data(),
@@ -73,7 +103,7 @@ ColumnarReader::ColumnarReader(const std::string &columnar) {
             throw std::invalid_argument("You give me really bad file");
         }
 
-        data_.scheme.Add(Raw{name, type});
+        data_.scheme.Add(Row{name, type});
     }
 
     data_.column_numbers = data_.scheme.GetSchemeNames().size();
@@ -81,22 +111,20 @@ ColumnarReader::ColumnarReader(const std::string &columnar) {
     is_.clear();
 }
 
-Butch ColumnarReader::ReadNext(const std::vector<size_t> &columns_to_read,
-                               size_t &cur_index) {
+Batch ColumnarReader::ReadNext(const Scheme &scheme, size_t &cur_index) {
     if (IsEnd(cur_index)) {
         throw std::out_of_range("No more data to read");
     }
 
-    const size_t columns_count = data_.scheme.GetSchemeNames().size();
-    for (const size_t column : columns_to_read) {
-        if (column >= columns_count) {
-            throw std::out_of_range("Incorrect column index");
-        }
+    std::vector<size_t> columns_to_read;
+    size_t columns_count = data_.scheme.GetSchemeNames().size();
+    for (auto &name : scheme.GetSchemeNames()) {
+        columns_to_read.push_back(data_.GetColumnIndexByName(name));
     }
 
     is_.seekg(data_.chunk_metas[cur_index], std::ios::beg);
 
-    Butch result(columns_to_read, data_.scheme, false);
+    Batch result(scheme, false);
 
     auto types = data_.scheme.GetSchemeTypes();
 
@@ -118,8 +146,8 @@ Butch ColumnarReader::ReadNext(const std::vector<size_t> &columns_to_read,
         std::streamoff column_size;
         if (column_index + 1 == columns_count) {
             if (cur_index == data_.chunk_metas.size() - 1) {
-                column_size = data_.meta_section_start -
-                              columns_starts[column_index];
+                column_size =
+                    data_.meta_section_start - columns_starts[column_index];
             } else {
                 column_size = data_.chunk_metas[cur_index + 1] -
                               columns_starts[column_index];
@@ -133,41 +161,71 @@ Butch ColumnarReader::ReadNext(const std::vector<size_t> &columns_to_read,
             throw std::invalid_argument("You give me really bad file");
         }
 
-        if (types[column_index] == ColumnTypes::Int64) {
+        if (types[column_index] == ColumnTypes::Int16) {
             size_t col_size = static_cast<size_t>(column_size);
-            void *buffer = malloc(col_size);
+            ByteVector data =
+                ReadByteVector(is_, col_size / sizeof(int16_t), col_size);
+            result.GetColumns()[i] =
+                std::make_shared<Int16Column>(std::move(data));
 
-            is_.read(static_cast<char *>(buffer), col_size);
-            ByteVector data(col_size / 8, col_size, buffer);
+        } else if (types[column_index] == ColumnTypes::Int32) {
+            size_t col_size = static_cast<size_t>(column_size);
+            ByteVector data =
+                ReadByteVector(is_, col_size / sizeof(int32_t), col_size);
+            result.GetColumns()[i] =
+                std::make_shared<Int32Column>(std::move(data));
+
+        } else if (types[column_index] == ColumnTypes::Int64) {
+            size_t col_size = static_cast<size_t>(column_size);
+            ByteVector data =
+                ReadByteVector(is_, col_size / sizeof(int64_t), col_size);
             result.GetColumns()[i] =
                 std::make_shared<Int64Column>(std::move(data));
+
+        } else if (types[column_index] == ColumnTypes::Int128) {
+            size_t col_size = static_cast<size_t>(column_size);
+            ByteVector data =
+                ReadByteVector(is_, col_size / sizeof(__int128), col_size);
+            result.GetColumns()[i] =
+                std::make_shared<Int128Column>(std::move(data));
+
+        } else if (types[column_index] == ColumnTypes::Double) {
+            size_t col_size = static_cast<size_t>(column_size);
+            ByteVector data =
+                ReadByteVector(is_, col_size / sizeof(double), col_size);
+            result.GetColumns()[i] =
+                std::make_shared<DoubleColumn>(std::move(data));
 
         } else if (types[column_index] == ColumnTypes::Timestamp ||
                    types[column_index] == ColumnTypes::Date) {
             size_t col_size = static_cast<size_t>(column_size);
-            void *buffer = malloc(col_size);
-
-            is_.read(static_cast<char *>(buffer), col_size);
-            ByteVector data(
-                col_size / sizeof(std::chrono::system_clock::time_point),
-                col_size, buffer);
+            ByteVector data = ReadByteVector(
+                is_, col_size / sizeof(std::chrono::system_clock::time_point),
+                col_size);
             result.GetColumns()[i] = std::make_shared<TimeColumn>(
                 std::move(data), types[column_index] == ColumnTypes::Date);
 
         } else if (types[column_index] == ColumnTypes::String ||
                    types[column_index] == ColumnTypes::Unknown) {
             size_t data_sz;
-            is_.read(reinterpret_cast<char *>(&data_sz), sizeof(data_sz));
-            void *buffer = malloc(data_sz);
-
-            is_.read(static_cast<char *>(buffer), data_sz);
+            if (!is_.read(reinterpret_cast<char *>(&data_sz),
+                          sizeof(data_sz))) {
+                throw std::invalid_argument("You give me really bad file");
+            }
+            OwnedBuffer buffer = ReadBuffer(is_, data_sz);
 
             size_t offsets_sz;
-            is_.read(reinterpret_cast<char *>(&offsets_sz), sizeof(offsets_sz));
+            if (!is_.read(reinterpret_cast<char *>(&offsets_sz),
+                          sizeof(offsets_sz))) {
+                throw std::invalid_argument("You give me really bad file");
+            }
             std::vector<size_t> offsets(offsets_sz / sizeof(size_t));
-            is_.read(reinterpret_cast<char *>(offsets.data()), offsets_sz);
+            if (!is_.read(reinterpret_cast<char *>(offsets.data()),
+                          offsets_sz)) {
+                throw std::invalid_argument("You give me really bad file");
+            }
 
-            ByteVector data = ByteVector(offsets.size(), data_sz, buffer);
+            ByteVector data(offsets.size(), data_sz, buffer.release());
             result.GetColumns()[i] = std::make_shared<StringColumn>(
                 std::move(data), std::move(offsets));
         }
@@ -178,18 +236,10 @@ Butch ColumnarReader::ReadNext(const std::vector<size_t> &columns_to_read,
     return result;
 }
 
-bool ColumnarReader::IsEnd(size_t cur_butch) const{
-    return cur_butch >= data_.chunk_metas.size();
+bool ColumnarReader::IsEnd(size_t cur_batch) const {
+    return cur_batch >= data_.chunk_metas.size();
 }
 
 ColumnarReader::~ColumnarReader() { is_.close(); }
 
 const Scheme &ColumnarReader::GetScheme() const { return data_.scheme; }
-
-std::string ColumnarReader::GetNameByIndex(size_t index) const {
-    return data_.GetColumnNameByIndex(index);
-}
-
-ColumnTypes ColumnarReader::GetTypeByIndex(size_t index) const {
-    return data_.GetColumnTypeByIndex(index);
-}

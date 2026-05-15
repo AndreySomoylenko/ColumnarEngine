@@ -17,7 +17,7 @@ CSVReader::CSVReader(const std::string &filename, char sep) : sep_(sep) {
     cur_string_.reserve(1 << 16);
 }
 
-void CSVReader::ReadNext(Raw &result) {
+void CSVReader::ReadNext(Row &result) {
     result.clear();
 
     if (!std::getline(is_, tmp_)) {

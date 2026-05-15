@@ -13,13 +13,13 @@ CSVWriter::CSVWriter(const std::string &filename, char sep) : sep_(sep) {
     }
 }
 
-void CSVWriter::WriteRaw(const Raw &raw) {
+void CSVWriter::WriteRow(const Row &row) {
     StringConverter converter;
 
-    for (size_t i = 0; i < raw.size(); ++i) {
-        converter.WriteString(os_, raw[i]);
+    for (size_t i = 0; i < row.size(); ++i) {
+        converter.WriteString(os_, row[i]);
 
-        if (i != raw.size() - 1) {
+        if (i != row.size() - 1) {
             os_.write(&sep_, 1);
         }
     }

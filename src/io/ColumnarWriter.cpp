@@ -18,14 +18,15 @@ ColumnarWriter::ColumnarWriter(const std::string &filename) {
     os_.write(reinterpret_cast<char *>(&meta_off), sizeof(meta_off));
 }
 
-void ColumnarWriter::WriteChunk(const Butch &butch) {
+void ColumnarWriter::WriteChunk(const Batch &batch) {
     std::vector<std::streampos> columns_starts;
 
     columns_starts.emplace_back(os_.tellp());
-    for (auto &x : butch.GetColumns()) {
+    for (auto &x : batch.GetColumns()) {
         auto [data, sz] = x->ToWrite();
 
-        if (x->GetColumnType() == ColumnTypes::String) {
+        if (x->GetColumnType() == ColumnTypes::String ||
+            x->GetColumnType() == ColumnTypes::Unknown) {
             os_.write(reinterpret_cast<const char *>(&sz), sizeof(sz));
             os_.write(data, sz);
             size_t offsets_sz = x->GetOffsets().size() * sizeof(size_t);
@@ -62,41 +63,15 @@ void ColumnarWriter::Close(const Scheme &scheme) {
     auto names = scheme.GetSchemeNames();
     auto types = scheme.GetSchemeTypes();
 
-    std::string int64 = "int64";
-    std::string str = "string";
-    std::string timestamp = "timestamp";
-    std::string date = "date";
-    std::string unknown = "unknown";
-
-    size_t int64_sz = int64.size();
-    size_t str_sz = str.size();
-    size_t timestamp_sz = timestamp.size();
-    size_t date_sz = date.size();
-    size_t unknown_sz = unknown.size();
-
     for (size_t i = 0; i < names.size(); ++i) {
         size_t name_sz = names[i].size();
         os_.write(reinterpret_cast<char *>(&name_sz), sizeof(name_sz));
         os_.write(names[i].data(), names[i].size());
 
-        if (types[i] == ColumnTypes::Int64) {
-            os_.write(reinterpret_cast<char *>(&int64_sz), sizeof(int64_sz));
-            os_.write(int64.data(), int64.size());
-        } else if (types[i] == ColumnTypes::String) {
-            os_.write(reinterpret_cast<char *>(&str_sz), sizeof(str_sz));
-            os_.write(str.data(), str.size());
-        } else if (types[i] == ColumnTypes::Timestamp) {
-            os_.write(reinterpret_cast<char *>(&timestamp_sz),
-                      sizeof(timestamp_sz));
-            os_.write(timestamp.data(), timestamp.size());
-        } else if (types[i] == ColumnTypes::Date) {
-            os_.write(reinterpret_cast<char *>(&date_sz), sizeof(date_sz));
-            os_.write(date.data(), date.size());
-        } else {
-            os_.write(reinterpret_cast<char *>(&unknown_sz),
-                      sizeof(unknown_sz));
-            os_.write(unknown.data(), unknown.size());
-        }
+        std::string type = GetNameByType(types[i]);
+        size_t type_sz = type.size();
+        os_.write(reinterpret_cast<char *>(&type_sz), sizeof(type_sz));
+        os_.write(type.data(), type.size());
     }
 
     os_.seekp(0, std::ios::beg);
