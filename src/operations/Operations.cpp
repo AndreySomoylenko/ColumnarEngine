@@ -1,6 +1,6 @@
 #include "Operations.h"
 #include "Aggregations.h"
-#include "data_structures/Butch.h"
+#include "data_structures/Batch.h"
 #include "data_structures/Column.h"
 #include "data_structures/Scheme.h"
 #include <algorithm>
@@ -22,9 +22,9 @@ using EnabledColumns = std::optional<std::unordered_set<size_t>>;
 
 namespace {
 
-bool CheckFilterCondition(const Butch &butch, const FilterTask &task,
+bool CheckFilterCondition(const Batch &batch, const FilterTask &task,
                           size_t row_index) {
-    const auto &column = butch.GetColumn(task.column_index);
+    const auto &column = batch.GetColumn(task.column_index);
     const auto value = column->Get(row_index);
 
     return task.condition(value.data, value.size);
@@ -571,13 +571,13 @@ void ProcessCountDistinctAgg(const std::shared_ptr<Column> &column,
     }
 }
 
-void Aggregation::Process(const Butch &butch) {
+void Aggregation::Process(const Batch &batch) {
     for (size_t i = 0; i < tasks_.size(); ++i) {
         const auto &task = tasks_[i];
         ColumnTypes column_type =
-            butch.GetColumn(task.column_index)->GetColumnType();
-        auto column = butch.GetColumn(task.column_index);
-        auto enabled = butch.GetEnabledColumns();
+            batch.GetColumn(task.column_index)->GetColumnType();
+        auto column = batch.GetColumn(task.column_index);
+        auto enabled = batch.GetEnabledColumns();
         column_active_size_[i] +=
             (enabled.has_value() ? enabled->size() : column->Size());
         switch (task.agg_type) {
@@ -637,14 +637,14 @@ size_t CountDistinctResultSize(const ResultAggVariant &result) {
     throw std::invalid_argument("Unexpected count distinct state");
 }
 
-std::vector<Butch> Aggregation::Finalize() && {
+std::vector<Batch> Aggregation::Finalize() && {
     Scheme result_scheme;
     for (auto &task : tasks_) {
         auto column_type = task.return_type;
         result_scheme.Add({task.alias, GetNameByType(column_type)});
     }
 
-    Butch result(result_scheme, false);
+    Batch result(result_scheme, false);
 
     for (int i = 0; i < tasks_.size(); ++i) {
         switch (tasks_[i].agg_type) {
@@ -659,12 +659,20 @@ std::vector<Butch> Aggregation::Finalize() && {
             if (auto *current =
                     std::get_if<std::pair<__int128, size_t>>(&results_[i])) {
                 auto &[sum, count] = *current;
+                if (count == 0) {
+                    throw std::invalid_argument(
+                        "Cannot calculate average of empty selection");
+                }
                 double avg = static_cast<double>(sum) / count;
                 result.AddToColumn(reinterpret_cast<char *>(&avg),
                                    sizeof(double), i);
             } else if (auto *current = std::get_if<std::pair<double, size_t>>(
                            &results_[i])) {
                 auto &[sum, count] = *current;
+                if (count == 0) {
+                    throw std::invalid_argument(
+                        "Cannot calculate average of empty selection");
+                }
                 double avg = sum / count;
                 result.AddToColumn(reinterpret_cast<char *>(&avg),
                                    sizeof(double), i);
@@ -865,20 +873,20 @@ Filter MakeFilter(std::vector<FilterTask> &&conditions) {
     return Filter(std::move(conditions));
 }
 
-void Filter::Execute(Butch &butch) {
-    auto enabled = static_cast<const Butch &>(butch).GetEnabledColumns();
+void Filter::Execute(Batch &batch) {
+    auto enabled = static_cast<const Batch &>(batch).GetEnabledColumns();
     for (auto &task : conditions_) {
         std::unordered_set<size_t> next_enabled;
 
         if (!enabled.has_value()) {
-            for (size_t ind = 0; ind < butch.VerticalSize(); ++ind) {
-                if (CheckFilterCondition(butch, task, ind)) {
+            for (size_t ind = 0; ind < batch.VerticalSize(); ++ind) {
+                if (CheckFilterCondition(batch, task, ind)) {
                     next_enabled.insert(ind);
                 }
             }
         } else {
             for (size_t ind : enabled.value()) {
-                if (CheckFilterCondition(butch, task, ind)) {
+                if (CheckFilterCondition(batch, task, ind)) {
                     next_enabled.insert(ind);
                 }
             }
@@ -887,7 +895,7 @@ void Filter::Execute(Butch &butch) {
         enabled = std::move(next_enabled);
     }
 
-    butch.SetEnabledColumns(std::move(enabled));
+    batch.SetEnabledColumns(std::move(enabled));
 }
 
 TopK::TopK(std::vector<size_t> &&column_indices, size_t k,
@@ -927,18 +935,18 @@ TopK MakeTopK(std::vector<size_t> &&column_indices, size_t k,
     return TopK(std::move(column_indices), k, result_scheme, direction);
 }
 
-void TopK::Process(const Butch &butch) {
-    if (butch.GetEnabledColumns().has_value()) {
-        for (auto &ind : butch.GetEnabledColumns().value()) {
-            ans_.insert(butch.GetRawLikeColumnVector(ind));
+void TopK::Process(const Batch &batch) {
+    if (batch.GetEnabledColumns().has_value()) {
+        for (auto &ind : batch.GetEnabledColumns().value()) {
+            ans_.insert(batch.GetRowLikeColumnVector(ind));
             if (ans_.size() > k_) {
                 ans_.erase(std::prev(ans_.end()));
             }
         }
         return;
     } else {
-        for (size_t i = 0; i < butch.VerticalSize(); ++i) {
-            ans_.insert(butch.GetRawLikeColumnVector(i));
+        for (size_t i = 0; i < batch.VerticalSize(); ++i) {
+            ans_.insert(batch.GetRowLikeColumnVector(i));
             if (ans_.size() > k_) {
                 ans_.erase(std::prev(ans_.end()));
             }
@@ -946,17 +954,17 @@ void TopK::Process(const Butch &butch) {
     }
 }
 
-std::vector<Butch> TopK::Finalize() && {
-    Butch part_of_ans(result_scheme_);
+std::vector<Batch> TopK::Finalize() && {
+    Batch part_of_ans(result_scheme_);
 
-    std::vector<Butch> result;
+    std::vector<Batch> result;
 
-    for (auto &raw : ans_) {
+    for (auto &row : ans_) {
         if (!part_of_ans.EnableToPush()) {
             result.emplace_back(std::move(part_of_ans));
-            part_of_ans = Butch(result_scheme_);
+            part_of_ans = Batch(result_scheme_);
         }
-        part_of_ans.PushColumnVector(raw);
+        part_of_ans.PushColumnVector(row);
     }
 
     if (!part_of_ans.IsEmpty()) {
@@ -1026,7 +1034,7 @@ GroupBy MakeGroupBy(GroupByTask &&task, const Scheme &scheme) {
     return GroupBy(std::move(task), scheme);
 }
 
-std::string BuildKey(const Butch &butch,
+std::string BuildKey(const Batch &batch,
                      const std::vector<size_t> &column_indices, size_t index);
 
 template <typename T> void UpdateMinValue(ResultAggVariant &result, T value) {
@@ -1227,7 +1235,7 @@ size_t GetAggColumnIndex(const GroupByTask &task, size_t agg_index) {
 
 void UpdateSingleAggValue(size_t row_index, ResultAggVariant &current,
                           AggType agg_type, size_t agg_column_index,
-                          const Butch &butch) {
+                          const Batch &batch) {
     switch (agg_type) {
     case AggType::Count:
         if (auto *count = std::get_if<uint64_t>(&current)) {
@@ -1237,23 +1245,23 @@ void UpdateSingleAggValue(size_t row_index, ResultAggVariant &current,
         }
         return;
     case AggType::Sum: {
-        auto column = butch.GetColumn(agg_column_index);
+        auto column = batch.GetColumn(agg_column_index);
         UpdateSumForGroupBy(current, column, row_index);
         return;
     }
     case AggType::Avg: {
-        auto column = butch.GetColumn(agg_column_index);
+        auto column = batch.GetColumn(agg_column_index);
         UpdateAvgForGroupBy(current, column, row_index);
         return;
     }
     case AggType::Min:
     case AggType::Max: {
-        auto column = butch.GetColumn(agg_column_index);
+        auto column = batch.GetColumn(agg_column_index);
         UpdateExtremeValue(current, column, row_index, agg_type);
         return;
     }
     case AggType::CountDistinct: {
-        auto column = butch.GetColumn(agg_column_index);
+        auto column = batch.GetColumn(agg_column_index);
         UpdateDistinctForGroupBy(current, column, row_index);
         return;
     }
@@ -1265,8 +1273,8 @@ void UpdateSingleAggValue(size_t row_index, ResultAggVariant &current,
 void UpdateKeyValue(
     size_t row_index,
     std::unordered_map<std::string, std::vector<ResultAggVariant>> &result,
-    const GroupByTask &task, const Butch &butch) {
-    auto key = BuildKey(butch, task.column_indices, row_index);
+    const GroupByTask &task, const Batch &batch) {
+    auto key = BuildKey(batch, task.column_indices, row_index);
     auto &current = result[key];
 
     if (current.empty()) {
@@ -1275,15 +1283,15 @@ void UpdateKeyValue(
 
     for (size_t i = 0; i < task.types_.size(); ++i) {
         UpdateSingleAggValue(row_index, current[i], task.types_[i],
-                             GetAggColumnIndex(task, i), butch);
+                             GetAggColumnIndex(task, i), batch);
     }
 }
 
-std::string BuildKey(const Butch &butch,
+std::string BuildKey(const Batch &batch,
                      const std::vector<size_t> &column_indices, size_t index) {
     std::string result;
     for (auto &ind : column_indices) {
-        auto column = butch.GetColumns()[ind];
+        auto column = batch.GetColumns()[ind];
         auto value = column->Get(index);
         if (IsStringType(column->GetColumnType())) {
             result.append(reinterpret_cast<const char *>(&value.size),
@@ -1295,21 +1303,21 @@ std::string BuildKey(const Butch &butch,
     return result;
 }
 
-void GroupBy::Process(const Butch &butch) {
-    auto enabled = butch.GetEnabledColumns();
+void GroupBy::Process(const Batch &batch) {
+    auto enabled = batch.GetEnabledColumns();
     if (enabled.has_value()) {
         for (auto &ind : enabled.value()) {
-            UpdateKeyValue(ind, result_, task_, butch);
+            UpdateKeyValue(ind, result_, task_, batch);
         }
         return;
     }
 
-    for (size_t i = 0; i < butch.VerticalSize(); ++i) {
-        UpdateKeyValue(i, result_, task_, butch);
+    for (size_t i = 0; i < batch.VerticalSize(); ++i) {
+        UpdateKeyValue(i, result_, task_, batch);
     }
 }
 
-void WriteKeyToResult(Butch &result, const std::string &key,
+void WriteKeyToResult(Batch &result, const std::string &key,
                       const GroupByTask &task, const Scheme &source_scheme) {
     size_t key_offset = 0;
 
@@ -1335,7 +1343,7 @@ void WriteKeyToResult(Butch &result, const std::string &key,
     }
 }
 
-void WriteCountDistinctToResult(Butch &result, const ResultAggVariant &value,
+void WriteCountDistinctToResult(Batch &result, const ResultAggVariant &value,
                                 size_t column_index) {
     size_t distinct_count = 0;
     if (auto *set = std::get_if<std::unordered_set<int16_t>>(&value)) {
@@ -1364,7 +1372,7 @@ void WriteCountDistinctToResult(Butch &result, const ResultAggVariant &value,
                        sizeof(result_value), column_index);
 }
 
-void WriteAggValueToResult(Butch &result, const ResultAggVariant &value,
+void WriteAggValueToResult(Batch &result, const ResultAggVariant &value,
                            AggType agg_type, size_t column_index) {
     switch (agg_type) {
     case AggType::Count: {
@@ -1378,11 +1386,19 @@ void WriteAggValueToResult(Butch &result, const ResultAggVariant &value,
         return WriteCountDistinctToResult(result, value, column_index);
     case AggType::Avg:
         if (auto *current = std::get_if<std::pair<__int128, size_t>>(&value)) {
+            if (current->second == 0) {
+                throw std::invalid_argument(
+                    "Cannot calculate average of empty group");
+            }
             double avg = static_cast<double>(current->first) / current->second;
             result.AddToColumn(reinterpret_cast<const char *>(&avg),
                                sizeof(avg), column_index);
         } else if (auto *current =
                        std::get_if<std::pair<double, size_t>>(&value)) {
+            if (current->second == 0) {
+                throw std::invalid_argument(
+                    "Cannot calculate average of empty group");
+            }
             double avg = current->first / current->second;
             result.AddToColumn(reinterpret_cast<const char *>(&avg),
                                sizeof(avg), column_index);
@@ -1453,15 +1469,15 @@ Scheme BuildGroupByResultScheme(const GroupByTask &task,
     return result_scheme;
 }
 
-std::vector<Butch> GroupBy::Finalize() && {
+std::vector<Batch> GroupBy::Finalize() && {
     Scheme result_scheme = BuildGroupByResultScheme(task_, scheme_);
-    std::vector<Butch> result;
-    Butch current(result_scheme, false);
+    std::vector<Batch> result;
+    Batch current(result_scheme, false);
 
     for (const auto &[key, values] : result_) {
         if (!current.EnableToPush()) {
             result.emplace_back(std::move(current));
-            current = Butch(result_scheme, false);
+            current = Batch(result_scheme, false);
         }
 
         WriteKeyToResult(current, key, task_, scheme_);
@@ -1482,7 +1498,7 @@ Offset::Offset(size_t offset) : offset_(offset) {}
 
 Offset MakeOffset(size_t offset) { return Offset(offset); }
 
-void Offset::Process(const Butch &butch) {
+void Offset::Process(const Batch &batch) {
     const auto PushRow = [&](size_t row) {
         if (offset_ > 0) {
             --offset_;
@@ -1490,19 +1506,19 @@ void Offset::Process(const Butch &butch) {
         }
 
         if (result_.empty() || !result_.back().EnableToPush()) {
-            result_.emplace_back(butch.GetScheme());
+            result_.emplace_back(batch.GetScheme());
         }
-        result_.back().PushColumnVector(butch.GetRawLikeColumnVector(row));
+        result_.back().PushColumnVector(batch.GetRowLikeColumnVector(row));
     };
 
-    for (size_t row = 0; row < butch.VerticalSize(); ++row) {
-        if (butch.IsRowEnabled(row)) {
+    for (size_t row = 0; row < batch.VerticalSize(); ++row) {
+        if (batch.IsRowEnabled(row)) {
             PushRow(row);
         }
     }
 }
 
-std::vector<Butch> Offset::Finalize() && {
+std::vector<Batch> Offset::Finalize() && {
     if (!result_.empty() && result_.back().IsEmpty()) {
         result_.pop_back();
     }
@@ -1517,22 +1533,22 @@ Expression MakeExpression(std::vector<ExpressionTask> &&tasks) {
     return Expression(std::move(tasks));
 }
 
-void Expression::Execute(Butch &butch) {
+void Expression::Execute(Batch &batch) {
     std::vector<std::shared_ptr<Column>> expression_columns;
     expression_columns.reserve(tasks_.size());
     for (const auto &task : tasks_) {
         expression_columns.emplace_back(MakeExpressionColumn(task.result_type));
     }
 
-    for (size_t row = 0; row < butch.VerticalSize(); ++row) {
+    for (size_t row = 0; row < batch.VerticalSize(); ++row) {
         for (size_t task_index = 0; task_index < tasks_.size(); ++task_index) {
-            tasks_[task_index].eval(butch, row,
+            tasks_[task_index].eval(batch, row,
                                     *expression_columns[task_index]);
         }
     }
 
     for (size_t task_index = 0; task_index < tasks_.size(); ++task_index) {
-        butch.AddColumn(std::move(expression_columns[task_index]),
+        batch.AddColumn(std::move(expression_columns[task_index]),
                         tasks_[task_index].result_type,
                         tasks_[task_index].alias);
     }
@@ -1542,7 +1558,7 @@ ExpressionTask MakeCopyColumnExpression(size_t column_index, std::string alias,
                                         ColumnTypes result_type) {
     return ExpressionTask{
         std::move(alias), result_type,
-        [column_index](const Butch &input, size_t row, Column &output) {
+        [column_index](const Batch &input, size_t row, Column &output) {
             auto value = input.GetColumn(column_index)->Get(row);
             output.Push(value.data, value.size);
         }};
@@ -1551,7 +1567,7 @@ ExpressionTask MakeCopyColumnExpression(size_t column_index, std::string alias,
 ExpressionTask MakeConstantInt64Expression(int64_t value, std::string alias) {
     return ExpressionTask{
         std::move(alias), ColumnTypes::Int64,
-        [value](const Butch &, size_t, Column &output) {
+        [value](const Batch &, size_t, Column &output) {
             output.Push(reinterpret_cast<const char *>(&value), sizeof(value));
         }};
 }
@@ -1560,7 +1576,7 @@ ExpressionTask MakeConstantStringExpression(std::string value,
                                             std::string alias) {
     return ExpressionTask{
         std::move(alias), ColumnTypes::String,
-        [value = std::move(value)](const Butch &, size_t, Column &output) {
+        [value = std::move(value)](const Batch &, size_t, Column &output) {
             output.Push(value.data(), value.size());
         }};
 }
@@ -1570,7 +1586,7 @@ ExpressionTask MakeAddInt64ConstantExpression(size_t column_index,
                                               std::string alias) {
     return ExpressionTask{
         std::move(alias), ColumnTypes::Int64,
-        [column_index, value](const Butch &input, size_t row, Column &output) {
+        [column_index, value](const Batch &input, size_t row, Column &output) {
             int64_t result =
                 ReadColumnValue<int64_t>(input.GetColumn(column_index), row) +
                 value;
@@ -1584,7 +1600,7 @@ ExpressionTask MakeSubInt64ConstantExpression(size_t column_index,
                                               std::string alias) {
     return ExpressionTask{
         std::move(alias), ColumnTypes::Int64,
-        [column_index, value](const Butch &input, size_t row, Column &output) {
+        [column_index, value](const Batch &input, size_t row, Column &output) {
             int64_t result =
                 ReadColumnValue<int64_t>(input.GetColumn(column_index), row) -
                 value;
@@ -1596,7 +1612,7 @@ ExpressionTask MakeSubInt64ConstantExpression(size_t column_index,
 ExpressionTask MakeLengthExpression(size_t column_index, std::string alias) {
     return ExpressionTask{
         std::move(alias), ColumnTypes::Int64,
-        [column_index](const Butch &input, size_t row, Column &output) {
+        [column_index](const Batch &input, size_t row, Column &output) {
             auto value = input.GetColumn(column_index)->Get(row);
             int64_t result = static_cast<int64_t>(value.size);
             output.Push(reinterpret_cast<const char *>(&result),
@@ -1608,7 +1624,7 @@ ExpressionTask MakeExtractMinuteExpression(size_t column_index,
                                            std::string alias) {
     return ExpressionTask{
         std::move(alias), ColumnTypes::Int64,
-        [column_index](const Butch &input, size_t row, Column &output) {
+        [column_index](const Batch &input, size_t row, Column &output) {
             auto timestamp =
                 ReadColumnValue<std::chrono::system_clock::time_point>(
                     input.GetColumn(column_index), row);
@@ -1622,7 +1638,7 @@ ExpressionTask MakeDateTruncMinuteExpression(size_t column_index,
                                              std::string alias) {
     return ExpressionTask{
         std::move(alias), ColumnTypes::Timestamp,
-        [column_index](const Butch &input, size_t row, Column &output) {
+        [column_index](const Batch &input, size_t row, Column &output) {
             auto timestamp =
                 ReadColumnValue<std::chrono::system_clock::time_point>(
                     input.GetColumn(column_index), row);
@@ -1638,7 +1654,7 @@ ExpressionTask MakeCaseWhenBothZeroThenStringElseEmptyExpression(
     return ExpressionTask{
         std::move(alias), ColumnTypes::String,
         [first_column_index, second_column_index,
-         string_column_index](const Butch &input, size_t row, Column &output) {
+         string_column_index](const Batch &input, size_t row, Column &output) {
             int64_t first = ReadColumnValue<int64_t>(
                 input.GetColumn(first_column_index), row);
             int64_t second = ReadColumnValue<int64_t>(
@@ -1656,7 +1672,7 @@ ExpressionTask MakeExtractDomainExpression(size_t column_index,
                                            std::string alias) {
     return ExpressionTask{
         std::move(alias), ColumnTypes::String,
-        [column_index](const Butch &input, size_t row, Column &output) {
+        [column_index](const Batch &input, size_t row, Column &output) {
             auto value = input.GetColumn(column_index)->Get(row);
             std::string domain =
                 ExtractDomain(std::string_view(value.data, value.size));
@@ -1672,20 +1688,20 @@ SelectAnswer::SelectAnswer(std::vector<size_t> &&column_indices)
         column_indices_.end());
 }
 
-void SelectAnswer::Execute(Butch &butch) {
+void SelectAnswer::Execute(Batch &batch) {
     for (size_t column_index : column_indices_) {
-        if (column_index >= butch.HorizontalSize()) {
+        if (column_index >= batch.HorizontalSize()) {
             throw std::out_of_range("Incorrect column index");
         }
     }
 
     std::unordered_set<size_t> selected_columns(column_indices_.begin(),
                                                 column_indices_.end());
-    for (size_t column_index = butch.HorizontalSize(); column_index > 0;
+    for (size_t column_index = batch.HorizontalSize(); column_index > 0;
          --column_index) {
         const size_t current = column_index - 1;
         if (!selected_columns.contains(current)) {
-            butch.RemoveColumn(current);
+            batch.RemoveColumn(current);
         }
     }
 }

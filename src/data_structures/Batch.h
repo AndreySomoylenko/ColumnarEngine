@@ -5,14 +5,14 @@
 #include <optional>
 #include <unordered_set>
 
-using Raw = std::vector<std::string>;
+using Row = std::vector<std::string>;
 
-class Butch {
+class Batch {
   public:
-    Butch(const Scheme &scheme, bool reserve = true);
+    Batch(const Scheme &scheme, bool reserve = true);
 
-    Butch(Scheme &&scheme, bool reserve = true);
-    void AddRaw(const Raw &raw);
+    Batch(Scheme &&scheme, bool reserve = true);
+    void AddRow(const Row &row);
     void AddToColumn(const std::string &value, const size_t index);
     void AddToColumn(const char *data, size_t sz, const size_t index);
     void AddColumn(std::shared_ptr<Column> column, ColumnTypes type,
@@ -25,10 +25,10 @@ class Butch {
     const std::vector<std::shared_ptr<Column>> &GetColumns() const;
     const std::shared_ptr<Column> &GetColumn(const size_t index) const;
 
-    Raw GetRaw(const size_t index);
+    Row GetRow(const size_t index);
     const std::vector<std::shared_ptr<Column>>
-    GetRawLikeColumnVector(const size_t index) const;
-    void PushColumnVector(const std::vector<std::shared_ptr<Column>> &raw);
+    GetRowLikeColumnVector(const size_t index) const;
+    void PushColumnVector(const std::vector<std::shared_ptr<Column>> &row);
 
     void SetEnabledColumns(std::optional<std::unordered_set<size_t>> &&enabled);
     const std::optional<std::unordered_set<size_t>> &GetEnabledColumns() const;

@@ -1,10 +1,10 @@
 #include "IOScanner.h"
-#include "data_structures/Butch.h"
+#include "data_structures/Batch.h"
 
 IOScanner::IOScanner(const Scheme &scheme, ColumnarReader &reader)
     : scheme_(scheme), reader_(reader) {}
 
-Butch IOScanner::ReadNext() {
+Batch IOScanner::ReadNext() {
     if (IsEnd()) {
         throw std::out_of_range("No more data to read");
     }

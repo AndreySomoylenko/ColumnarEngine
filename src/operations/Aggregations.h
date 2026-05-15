@@ -16,7 +16,7 @@ using EnabledColumns = std::optional<std::unordered_set<size_t>>;
 
 namespace agg {
 
-namespace {
+namespace detail {
 
 template <typename T>
 concept StringValue = std::same_as<T, std::string>;
@@ -95,7 +95,7 @@ T Extremum(const std::shared_ptr<Column> &column,
     }
 }
 
-} // namespace
+} // namespace detail
 
 template <typename ReadT, typename ResultT>
 ResultT SumAs(const std::shared_ptr<Column> &column,
@@ -104,14 +104,14 @@ ResultT SumAs(const std::shared_ptr<Column> &column,
 
     if (selected.has_value()) {
         for (size_t i : selected.value()) {
-            sum += static_cast<ResultT>(ReadValue<ReadT>(column, i));
+            sum += static_cast<ResultT>(detail::ReadValue<ReadT>(column, i));
         }
 
         return sum;
     }
 
     for (size_t i = 0; i < column->Size(); ++i) {
-        sum += static_cast<ResultT>(ReadValue<ReadT>(column, i));
+        sum += static_cast<ResultT>(detail::ReadValue<ReadT>(column, i));
     }
 
     return sum;
@@ -130,15 +130,17 @@ T Sum(const std::shared_ptr<Column> &column,
 template <typename T>
 T Min(const std::shared_ptr<Column> &column,
       const EnabledColumns &selected = std::nullopt) {
-    return Extremum<T>(column, selected, "Cannot calculate min of empty column",
-                       std::less<>{});
+    return detail::Extremum<T>(column, selected,
+                               "Cannot calculate min of empty column",
+                               std::less<>{});
 }
 
 template <typename T>
 T Max(const std::shared_ptr<Column> &column,
       const EnabledColumns &selected = std::nullopt) {
-    return Extremum<T>(column, selected, "Cannot calculate max of empty column",
-                       std::greater<>{});
+    return detail::Extremum<T>(column, selected,
+                               "Cannot calculate max of empty column",
+                               std::greater<>{});
 }
 
 template <typename T>
@@ -147,11 +149,13 @@ double Avg(const std::shared_ptr<Column> &column,
     if (column->Size() == 0) {
         throw std::invalid_argument("Cannot calculate average of empty column");
     }
+    const size_t count = selected.has_value() ? selected->size() : column->Size();
+    if (count == 0) {
+        throw std::invalid_argument("Cannot calculate average of empty selection");
+    }
 
     T sum = agg::Sum<T>(column, selected);
-    return static_cast<double>(sum) /
-           static_cast<double>(selected.has_value() ? selected.value().size()
-                                                    : column->Size());
+    return static_cast<double>(sum) / static_cast<double>(count);
 }
 
 template <typename T, typename Hash, typename KeyEqual, typename Allocator>
@@ -162,11 +166,11 @@ void CountDistinct(const std::shared_ptr<Column> &column,
     if (selected.has_value()) {
 
         for (size_t i : selected.value()) {
-            if constexpr (StringValue<T>) {
-                std::string_view value = ReadValue<T>(column, i);
+            if constexpr (detail::StringValue<T>) {
+                std::string_view value = detail::ReadValue<T>(column, i);
                 answer.emplace(value);
             } else {
-                answer.insert(ReadValue<T>(column, i));
+                answer.insert(detail::ReadValue<T>(column, i));
             }
         }
 
@@ -176,11 +180,11 @@ void CountDistinct(const std::shared_ptr<Column> &column,
     answer.reserve(column->Size());
 
     for (size_t i = 0; i < column->Size(); ++i) {
-        if constexpr (StringValue<T>) {
-            std::string_view value = ReadValue<T>(column, i);
+        if constexpr (detail::StringValue<T>) {
+            std::string_view value = detail::ReadValue<T>(column, i);
             answer.emplace(value);
         } else {
-            answer.insert(ReadValue<T>(column, i));
+            answer.insert(detail::ReadValue<T>(column, i));
         }
     }
 }

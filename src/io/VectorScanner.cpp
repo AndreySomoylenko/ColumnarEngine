@@ -1,16 +1,16 @@
 #include "VectorScanner.h"
 
-VectorScanner::VectorScanner(const std::vector<Butch> &butches)
-    : butches_(butches) {}
+VectorScanner::VectorScanner(const std::vector<Batch> &batches)
+    : batches_(batches) {}
 
-VectorScanner::VectorScanner(std::vector<Butch> &&butches)
-    : butches_(std::move(butches)) {}
+VectorScanner::VectorScanner(std::vector<Batch> &&batches)
+    : batches_(std::move(batches)) {}
 
-Butch VectorScanner::ReadNext() {
+Batch VectorScanner::ReadNext() {
     if (IsEnd()) {
-        throw std::out_of_range("No more butches to read");
+        throw std::out_of_range("No more batches to read");
     }
-    return butches_[cur_index_++];
+    return batches_[cur_index_++];
 }
 
-bool VectorScanner::IsEnd() const { return cur_index_ >= butches_.size(); }
+bool VectorScanner::IsEnd() const { return cur_index_ >= batches_.size(); }

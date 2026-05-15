@@ -14,7 +14,7 @@ TEST(HitsColumnsTest, MatchesFixtureSchemeOrder) {
         std::filesystem::path(COLUMNAR_TEST_FIXTURES_DIR) / "scheme.csv";
     CSVReader reader(scheme_path.string());
 
-    Raw row;
+    Row row;
     size_t index = 0;
     while (!reader.IsEnd()) {
         reader.ReadNext(row);

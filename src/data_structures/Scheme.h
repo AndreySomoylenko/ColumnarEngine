@@ -7,7 +7,7 @@
 
 using Filename = std::string;
 
-using Raw = std::vector<std::string>;
+using Row = std::vector<std::string>;
 
 class Scheme {
   private:
@@ -17,11 +17,11 @@ class Scheme {
     std::unordered_map<std::string, ColumnTypes> name_to_type;
 
   public:
-    void Add(const Raw &str);
+    void Add(const Row &str);
     void RemoveColumn(size_t index);
     const std::vector<std::string> &GetSchemeNames() const;
     const std::vector<ColumnTypes> &GetSchemeTypes() const;
     size_t GetColumnIndexByName(const std::string &name) const;
     ColumnTypes GetColumnTypeByName(const std::string &name) const;
-    std::vector<Raw> GiveRaws() const;
+    std::vector<Row> GiveRows() const;
 };

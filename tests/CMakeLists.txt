@@ -11,7 +11,7 @@ add_executable(columnar_tests
     core/test_engine.cpp
     core/test_hits_e2e.cpp
     data_structures/test_byte_vector.cpp
-    data_structures/test_columns_scheme_butch.cpp
+    data_structures/test_columns_scheme_batch.cpp
     io/test_columnar_io.cpp
     io/test_csv_io.cpp
     operations/test_aggregations.cpp

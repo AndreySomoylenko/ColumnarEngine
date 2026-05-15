@@ -1,13 +1,13 @@
 #pragma once
 
-#include "data_structures/Butch.h"
-#include "io/ButchScanner.h"
+#include "data_structures/Batch.h"
+#include "io/BatchScanner.h"
 #include "io/ColumnarReader.h"
 
-class IOScanner : public ButchScanner {
+class IOScanner : public BatchScanner {
   public:
     IOScanner(const Scheme &scheme, ColumnarReader &reader);
-    Butch ReadNext() override;
+    Batch ReadNext() override;
     bool IsEnd() const override;
 
   private:

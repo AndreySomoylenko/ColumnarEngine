@@ -10,7 +10,7 @@
 
 namespace {
 
-using Raw = std::vector<std::string>;
+using Row = std::vector<std::string>;
 
 class CsvIoTest : public ::testing::Test {
   protected:
@@ -51,25 +51,25 @@ TEST_F(CsvIoTest, ReaderParsesQuotedFieldsAndEmptyCells) {
               "id,,\"name,with,comma\",\"he said \"\"hi\"\"\",\"\"\n");
 
     CSVReader reader(Path("input.csv").string());
-    Raw row;
+    Row row;
 
     reader.ReadNext(row);
 
-    EXPECT_EQ(row, (Raw{"id", "", "name,with,comma", "he said \"hi\"", ""}));
+    EXPECT_EQ(row, (Row{"id", "", "name,with,comma", "he said \"hi\"", ""}));
 }
 
 TEST_F(CsvIoTest, ReaderKeepsTrailingEmptyFields) {
     WriteText(Path("input.csv"), "a,b,\n,\n\n");
 
     CSVReader reader(Path("input.csv").string());
-    Raw row;
+    Row row;
 
     reader.ReadNext(row);
-    EXPECT_EQ(row, (Raw{"a", "b", ""}));
+    EXPECT_EQ(row, (Row{"a", "b", ""}));
 
     row.clear();
     reader.ReadNext(row);
-    EXPECT_EQ(row, (Raw{"", ""}));
+    EXPECT_EQ(row, (Row{"", ""}));
 
     row.clear();
     reader.ReadNext(row);
@@ -80,17 +80,17 @@ TEST_F(CsvIoTest, ReaderSupportsCustomSeparators) {
     WriteText(Path("input.csv"), "\"a;b\";c\n");
 
     CSVReader reader(Path("input.csv").string(), ';');
-    Raw row;
+    Row row;
 
     reader.ReadNext(row);
-    EXPECT_EQ(row, (Raw{"a;b", "c"}));
+    EXPECT_EQ(row, (Row{"a;b", "c"}));
 }
 
 TEST_F(CsvIoTest, ReaderRejectsUnclosedQuotes) {
     WriteText(Path("input.csv"), "\"unterminated\n");
 
     CSVReader reader(Path("input.csv").string());
-    Raw row;
+    Row row;
 
     EXPECT_THROW(reader.ReadNext(row), std::invalid_argument);
 }
@@ -99,14 +99,14 @@ TEST_F(CsvIoTest, ReaderMovesThroughMultipleRows) {
     WriteText(Path("input.csv"), "a,b,c\n1,2,3\n");
 
     CSVReader reader(Path("input.csv").string());
-    Raw row;
+    Row row;
 
     reader.ReadNext(row);
-    EXPECT_EQ(row, (Raw{"a", "b", "c"}));
+    EXPECT_EQ(row, (Row{"a", "b", "c"}));
 
     row.clear();
     reader.ReadNext(row);
-    EXPECT_EQ(row, (Raw{"1", "2", "3"}));
+    EXPECT_EQ(row, (Row{"1", "2", "3"}));
 
     row.clear();
     reader.ReadNext(row);
@@ -122,7 +122,7 @@ TEST_F(CsvIoTest, ReaderThrowsForMissingFile) {
 TEST_F(CsvIoTest, WriterQuotesAndEscapesFields) {
     {
         CSVWriter writer(Path("out.csv").string());
-        writer.WriteRaw({"a", "", "b,c", "he said \"hi\""});
+        writer.WriteRow({"a", "", "b,c", "he said \"hi\""});
     }
 
     EXPECT_EQ(ReadWholeFile(Path("out.csv")),
@@ -132,19 +132,19 @@ TEST_F(CsvIoTest, WriterQuotesAndEscapesFields) {
 TEST_F(CsvIoTest, WriterRoundTripsThroughReader) {
     {
         CSVWriter writer(Path("roundtrip.csv").string());
-        writer.WriteRaw({"1", "Ivanov, Ivan"});
-        writer.WriteRaw({"2", "Petrov \"Petr\""});
+        writer.WriteRow({"1", "Ivanov, Ivan"});
+        writer.WriteRow({"2", "Petrov \"Petr\""});
     }
 
     CSVReader reader(Path("roundtrip.csv").string());
-    Raw row;
+    Row row;
 
     reader.ReadNext(row);
-    EXPECT_EQ(row, (Raw{"1", "Ivanov, Ivan"}));
+    EXPECT_EQ(row, (Row{"1", "Ivanov, Ivan"}));
 
     row.clear();
     reader.ReadNext(row);
-    EXPECT_EQ(row, (Raw{"2", "Petrov \"Petr\""}));
+    EXPECT_EQ(row, (Row{"2", "Petrov \"Petr\""}));
 }
 
 TEST_F(CsvIoTest, WriterThrowsWhenDirectoryIsMissing) {
@@ -155,7 +155,7 @@ TEST_F(CsvIoTest, WriterThrowsWhenDirectoryIsMissing) {
 TEST_F(CsvIoTest, WriterSupportsCustomSeparators) {
     {
         CSVWriter writer(Path("semi.csv").string(), ';');
-        writer.WriteRaw({"a;b", "c"});
+        writer.WriteRow({"a;b", "c"});
     }
 
     EXPECT_EQ(ReadWholeFile(Path("semi.csv")), "\"a;b\";\"c\"\n");

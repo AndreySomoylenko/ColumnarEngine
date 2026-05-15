@@ -1,5 +1,5 @@
 #include "Engine.h"
-#include "data_structures/Butch.h"
+#include "data_structures/Batch.h"
 #include "data_structures/Scheme.h"
 #include "io/CSVReader.h"
 #include "io/CSVWriter.h"
@@ -14,7 +14,7 @@ Engine::Engine(const Filename &data, const Filename &scheme,
 
     Scheme t_scheme;
 
-    Raw cur;
+    Row cur;
 
     while (!scheme_reader.IsEnd()) {
         scheme_reader.ReadNext(cur);
@@ -24,7 +24,7 @@ Engine::Engine(const Filename &data, const Filename &scheme,
         t_scheme.Add(cur);
     }
 
-    Butch tmp(t_scheme);
+    Batch tmp(t_scheme);
 
     CSVReader data_reader(data);
 
@@ -45,7 +45,7 @@ Engine::Engine(const Filename &data, const Filename &scheme,
             writer.WriteChunk(tmp);
             tmp.Clear();
         }
-        tmp.AddRaw(cur);
+        tmp.AddRow(cur);
     }
 
     if (tmp.VerticalSize() != 0) {
@@ -67,9 +67,9 @@ void Engine::TakeAll(const Filename &result_name) {
     CSVWriter result_writer(result_name);
 
     while (!scanner.IsEnd()) {
-        Butch chunk = scanner.ReadNext();
+        Batch chunk = scanner.ReadNext();
         for (size_t row = 0; row < chunk.VerticalSize(); ++row) {
-            result_writer.WriteRaw(chunk.GetRaw(row));
+            result_writer.WriteRow(chunk.GetRow(row));
         }
     }
 
@@ -78,7 +78,7 @@ void Engine::TakeAll(const Filename &result_name) {
         result_path.parent_path() /
         ("scheme_" + result_path.filename().string());
     CSVWriter scheme_writer(scheme_path.string());
-    for (const Raw &row : scheme.GiveRaws()) {
-        scheme_writer.WriteRaw(row);
+    for (const Row &row : scheme.GiveRows()) {
+        scheme_writer.WriteRow(row);
     }
 }

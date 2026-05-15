@@ -1,10 +1,10 @@
 #pragma once
 
-#include "data_structures/Butch.h"
-class ButchScanner {
+#include "data_structures/Batch.h"
+class BatchScanner {
   public:
-    virtual ~ButchScanner() = default;
-    virtual Butch ReadNext() = 0;
+    virtual ~BatchScanner() = default;
+    virtual Batch ReadNext() = 0;
     virtual bool IsEnd() const = 0;
     void Reset() { cur_index_ = 0; }
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "data_structures/Butch.h"
+#include "data_structures/Batch.h"
 #include "data_structures/Column.h"
 #include <chrono>
 #include <cstddef>
@@ -26,15 +26,15 @@ class StreamingOperation : public Operation {
   public:
     OperationType GetType() const override;
 
-    virtual void Execute(Butch &butch) = 0;
+    virtual void Execute(Batch &batch) = 0;
 };
 
 class BlockingOperation : public Operation {
   public:
     OperationType GetType() const override;
-    virtual void Process(const Butch &butch) = 0;
+    virtual void Process(const Batch &batch) = 0;
 
-    virtual std::vector<Butch> Finalize() && = 0;
+    virtual std::vector<Batch> Finalize() && = 0;
 };
 
 enum class AggType { Sum, Min, Max, CountDistinct, Avg, Count };
@@ -43,7 +43,7 @@ struct AggTask {
     size_t column_index;
     AggType agg_type;
 
-    ColumnTypes return_type; // Maybe replace with something more effencitive
+    ColumnTypes return_type;
 
     std::string alias;
 };
@@ -81,8 +81,8 @@ using ResultAggVariant = std::variant<
 class Aggregation : public BlockingOperation {
   public:
     Aggregation(std::vector<AggTask> &&tasks);
-    void Process(const Butch &butch) override;
-    std::vector<Butch> Finalize() && override;
+    void Process(const Batch &batch) override;
+    std::vector<Batch> Finalize() && override;
 
   private:
     std::vector<AggTask> tasks_;
@@ -130,7 +130,7 @@ class Filter : public StreamingOperation {
     Filter() = default;
     explicit Filter(std::vector<FilterTask> &&conditions);
 
-    void Execute(Butch &butch) override;
+    void Execute(Batch &batch) override;
 
   private:
     std::vector<FilterTask> conditions_;
@@ -177,8 +177,8 @@ class TopK : public BlockingOperation {
          SortDirection direction = SortDirection::Descending);
     TopK(std::vector<SortKey> &&sort_keys, size_t k,
          const Scheme &result_scheme);
-    void Process(const Butch &butch) override;
-    std::vector<Butch> Finalize() && override;
+    void Process(const Batch &batch) override;
+    std::vector<Batch> Finalize() && override;
 
   private:
     std::vector<SortKey> sort_keys_;
@@ -222,8 +222,8 @@ GroupByTask MakeGroupByTask(std::vector<size_t> &&group_column_indices,
 class GroupBy : public BlockingOperation {
   public:
     GroupBy(GroupByTask &&task, const Scheme &scheme);
-    void Process(const Butch &butch) override;
-    std::vector<Butch> Finalize() && override;
+    void Process(const Batch &batch) override;
+    std::vector<Batch> Finalize() && override;
 
   private:
     std::unordered_map<std::string, std::vector<ResultAggVariant>> result_;
@@ -236,12 +236,12 @@ GroupBy MakeGroupBy(GroupByTask &&task, const Scheme &scheme);
 class Offset : public BlockingOperation {
   public:
     Offset(size_t offset);
-    void Process(const Butch &butch) override;
-    std::vector<Butch> Finalize() && override;
+    void Process(const Batch &batch) override;
+    std::vector<Batch> Finalize() && override;
 
   private:
     size_t offset_;
-    std::vector<Butch> result_;
+    std::vector<Batch> result_;
 };
 
 Offset MakeOffset(size_t offset);
@@ -250,14 +250,14 @@ struct ExpressionTask {
     std::string alias;
     ColumnTypes result_type;
 
-    std::function<void(const Butch &, size_t, Column &)> eval;
+    std::function<void(const Batch &, size_t, Column &)> eval;
 };
 
 class Expression : public StreamingOperation {
   public:
     explicit Expression(std::vector<ExpressionTask> &&tasks);
 
-    void Execute(Butch &butch) override;
+    void Execute(Batch &batch) override;
 
   private:
     std::vector<ExpressionTask> tasks_;
@@ -293,7 +293,7 @@ ExpressionTask MakeExtractDomainExpression(size_t column_index,
 class SelectAnswer : public StreamingOperation {
   public:
     SelectAnswer(std::vector<size_t> &&column_indices);
-    void Execute(Butch &butch) override;
+    void Execute(Batch &batch) override;
 
   private:
     std::vector<size_t> column_indices_;

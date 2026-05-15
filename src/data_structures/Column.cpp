@@ -103,7 +103,7 @@ std::string GetNameByType(ColumnTypes type) {
     } else if (type == ColumnTypes::Unknown) {
         return "unknown";
     } else {
-        throw std::invalid_argument("Don't mutch any column type");
+        throw std::invalid_argument("Doesn't mutch any column type");
     }
 }
 

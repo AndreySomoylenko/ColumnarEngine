@@ -3,7 +3,7 @@
 #include <stdexcept>
 #include <vector>
 
-void Scheme::Add(const Raw &str) {
+void Scheme::Add(const Row &str) {
     if (str.size() < 2) {
         throw std::invalid_argument("Incorrect scheme");
     }
@@ -57,8 +57,8 @@ const std::vector<ColumnTypes> &Scheme::GetSchemeTypes() const {
     return column_types;
 }
 
-std::vector<Raw> Scheme::GiveRaws() const {
-    std::vector<Raw> result;
+std::vector<Row> Scheme::GiveRows() const {
+    std::vector<Row> result;
     result.reserve(column_names.size());
 
     for (size_t i = 0; i < column_names.size(); ++i) {
@@ -84,7 +84,7 @@ std::vector<Raw> Scheme::GiveRaws() const {
             type_str = "int128";
         }
 
-        result.push_back(Raw{column_names[i], type_str});
+        result.push_back(Row{column_names[i], type_str});
     }
 
     return result;

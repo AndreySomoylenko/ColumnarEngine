@@ -24,9 +24,9 @@ std::filesystem::path EnvPathOrDefault(const char *name, const char *fallback) {
     return fallback;
 }
 
-Raw ReadFirstRow(const std::filesystem::path &path) {
+Row ReadFirstRow(const std::filesystem::path &path) {
     CSVReader reader(path.string());
-    Raw row;
+    Row row;
     reader.ReadNext(row);
     return row;
 }
@@ -40,8 +40,8 @@ std::string NormalizeValue(const std::string &s) {
 
 Scheme AllColumns(const ColumnarReader &reader) {
     Scheme result;
-    for (const auto &raw : reader.GetScheme().GiveRaws()) {
-        result.Add(raw);
+    for (const auto &row : reader.GetScheme().GiveRows()) {
+        result.Add(row);
     }
     return result;
 }
@@ -67,7 +67,7 @@ TEST(HitsE2ETest, ConvertsRealHitsSampleAndReadsItBack) {
     std::filesystem::create_directories(temp_dir);
 
     const auto columnar_path = temp_dir / "hits_sample.hub";
-    const Raw expected_first_row = ReadFirstRow(data_path);
+    const Row expected_first_row = ReadFirstRow(data_path);
 
     Engine engine(data_path.string(), scheme_path.string(),
                   columnar_path.string());
@@ -76,12 +76,12 @@ TEST(HitsE2ETest, ConvertsRealHitsSampleAndReadsItBack) {
     IOScanner scanner(columns, reader);
 
     ASSERT_FALSE(scanner.IsEnd());
-    Butch first_chunk = scanner.ReadNext();
+    Batch first_chunk = scanner.ReadNext();
 
     EXPECT_EQ(reader.GetScheme().GetSchemeNames().size(),
               expected_first_row.size());
     ASSERT_GT(first_chunk.VerticalSize(), 0U);
-    EXPECT_EQ(first_chunk.GetRaw(0), expected_first_row);
+    EXPECT_EQ(first_chunk.GetRow(0), expected_first_row);
 
     std::filesystem::remove_all(temp_dir, ec);
 }
@@ -114,7 +114,7 @@ TEST(HitsE2ETest, ConvertHitsSampleAndPrintStats) {
     IOScanner scanner(columns, reader);
     size_t total_rows = 0;
     while (!scanner.IsEnd()) {
-        Butch chunk = scanner.ReadNext();
+        Batch chunk = scanner.ReadNext();
         total_rows += chunk.VerticalSize();
     }
 
@@ -160,7 +160,7 @@ TEST(HitsE2ETest, RoundTripCsvToHubToCsvMatches) {
     CSVReader original_reader(data_path.string());
     CSVReader output_reader(output_csv_path.string());
 
-    Raw original_row, output_row;
+    Row original_row, output_row;
     size_t row_count = 0;
     const size_t max_rows_to_check =
         1000; // Check first 1000 rows for performance

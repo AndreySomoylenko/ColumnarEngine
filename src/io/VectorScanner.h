@@ -1,14 +1,14 @@
 #pragma once
 
-#include "io/ButchScanner.h"
+#include "io/BatchScanner.h"
 
-class VectorScanner : public ButchScanner {
+class VectorScanner : public BatchScanner {
   public:
-    VectorScanner(const std::vector<Butch> &butches);
-    VectorScanner(std::vector<Butch> &&butches);
-    Butch ReadNext() override;
+    VectorScanner(const std::vector<Batch> &batches);
+    VectorScanner(std::vector<Batch> &&batches);
+    Batch ReadNext() override;
     bool IsEnd() const override;
 
   private:
-    std::vector<Butch> butches_;
+    std::vector<Batch> batches_;
 };

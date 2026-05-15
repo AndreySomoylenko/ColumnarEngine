@@ -18,11 +18,11 @@ ColumnarWriter::ColumnarWriter(const std::string &filename) {
     os_.write(reinterpret_cast<char *>(&meta_off), sizeof(meta_off));
 }
 
-void ColumnarWriter::WriteChunk(const Butch &butch) {
+void ColumnarWriter::WriteChunk(const Batch &batch) {
     std::vector<std::streampos> columns_starts;
 
     columns_starts.emplace_back(os_.tellp());
-    for (auto &x : butch.GetColumns()) {
+    for (auto &x : batch.GetColumns()) {
         auto [data, sz] = x->ToWrite();
 
         if (x->GetColumnType() == ColumnTypes::String ||
