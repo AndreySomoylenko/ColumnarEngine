@@ -57,9 +57,9 @@ class Column : public std::enable_shared_from_this<Column> {
 class Int16Column : public Column {
   public:
     Int16Column() = default;
-    Int16Column(const size_t sz);
+    explicit Int16Column(const size_t sz);
     Int16Column(const char *data, size_t sz, size_t count);
-    Int16Column(ByteVector &&data);
+    explicit Int16Column(ByteVector &&data);
 
     size_t Size() const override;
     void Push(const std::string &s) override;
@@ -79,9 +79,9 @@ class Int16Column : public Column {
 class Int32Column : public Column {
   public:
     Int32Column() = default;
-    Int32Column(const size_t sz);
+    explicit Int32Column(const size_t sz);
     Int32Column(const char *data, size_t sz, size_t count);
-    Int32Column(ByteVector &&data);
+    explicit Int32Column(ByteVector &&data);
 
     size_t Size() const override;
     void Push(const std::string &s) override;
@@ -101,10 +101,10 @@ class Int32Column : public Column {
 class Int64Column : public Column {
   public:
     Int64Column() = default;
-    Int64Column(const size_t sz);
+    explicit Int64Column(const size_t sz);
     Int64Column(const char *data, size_t sz, size_t count);
 
-    Int64Column(ByteVector &&data);
+    explicit Int64Column(ByteVector &&data);
 
     size_t Size() const override;
     void Push(const std::string &s) override;
@@ -124,9 +124,9 @@ class Int64Column : public Column {
 class Int128Column : public Column {
   public:
     Int128Column() = default;
-    Int128Column(const size_t sz);
+    explicit Int128Column(const size_t sz);
     Int128Column(const char *data, size_t sz, size_t count);
-    Int128Column(ByteVector &&data);
+    explicit Int128Column(ByteVector &&data);
 
     size_t Size() const override;
     void Push(const std::string &s) override;
@@ -146,9 +146,9 @@ class Int128Column : public Column {
 class DoubleColumn : public Column {
   public:
     DoubleColumn() = default;
-    DoubleColumn(const size_t sz);
+    explicit DoubleColumn(const size_t sz);
     DoubleColumn(const char *data, size_t sz, size_t count);
-    DoubleColumn(ByteVector &&data);
+    explicit DoubleColumn(ByteVector &&data);
 
     size_t Size() const override;
     void Push(const std::string &s) override;
@@ -168,7 +168,7 @@ class DoubleColumn : public Column {
 class StringColumn : public Column {
   public:
     StringColumn() = default;
-    StringColumn(const size_t sz);
+    explicit StringColumn(const size_t sz);
     StringColumn(const char *data, size_t sz, size_t count);
 
     StringColumn(ByteVector &&data, std::vector<size_t> &&offsets);
@@ -194,10 +194,10 @@ class TimeColumn : public Column {
   public:
     TimeColumn() = default;
     explicit TimeColumn(bool is_date);
-    TimeColumn(const size_t sz, bool is_date = false);
+    explicit TimeColumn(const size_t sz, bool is_date = false);
     TimeColumn(const char *data, size_t sz, size_t count, bool is_date = false);
 
-    TimeColumn(ByteVector &&data, bool is_date = false);
+    explicit TimeColumn(ByteVector &&data, bool is_date = false);
     size_t Size() const override;
     void Push(const std::string &s) override;
     void Push(const char *data, size_t sz) override;

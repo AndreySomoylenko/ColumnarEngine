@@ -8,7 +8,7 @@ using Row = std::vector<std::string>;
 
 class CsvWriter {
   public:
-    CsvWriter(const std::string &filename, char sep = ',');
+    explicit CsvWriter(const std::string &filename, char sep = ',');
 
     void WriteRow(const Row &row);
     void Flush();

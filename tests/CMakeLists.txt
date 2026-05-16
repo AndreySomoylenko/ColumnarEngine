@@ -16,6 +16,7 @@ add_executable(columnar_tests
     io/test_columnar_io.cpp
     io/test_csv_io.cpp
     operations/test_aggregations.cpp
+    simple_tests/test_class_usage.cpp
     utils/test_hits_columns.cpp
     utils/test_string_converter.cpp
 )
@@ -23,11 +24,11 @@ add_executable(columnar_tests
 target_link_libraries(columnar_tests
     PRIVATE
         gtest_main
-        columnar_core     
-        columnar_io          
-        columnar_data_structures 
+        columnar_core
+        columnar_io
+        columnar_data_structures
         columnar_operations
-        columnar_utils    
+        columnar_utils
 )
 
 target_include_directories(columnar_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)

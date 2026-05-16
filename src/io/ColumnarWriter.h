@@ -6,7 +6,7 @@
 
 class ColumnarWriter {
   public:
-    ColumnarWriter(const std::string &filename);
+    explicit ColumnarWriter(const std::string &filename);
     void WriteChunk(const Batch &batch);
     void Close(const Scheme &scheme) &&;
 

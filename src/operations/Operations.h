@@ -80,7 +80,7 @@ using ResultAggVariant = std::variant<
 
 class Aggregation : public BlockingOperation {
   public:
-    Aggregation(std::vector<AggTask> &&tasks);
+    explicit Aggregation(std::vector<AggTask> &&tasks);
     void Process(const Batch &batch) override;
     std::vector<Batch> Finalize() && override;
 
@@ -235,7 +235,7 @@ GroupBy MakeGroupBy(GroupByTask &&task, const Scheme &scheme);
 
 class Offset : public BlockingOperation {
   public:
-    Offset(size_t offset);
+    explicit Offset(size_t offset);
     void Process(const Batch &batch) override;
     std::vector<Batch> Finalize() && override;
 
@@ -296,7 +296,7 @@ ExpressionTask MakeExtractDomainExpression(size_t column_index,
 
 class SelectAnswer : public StreamingOperation {
   public:
-    SelectAnswer(std::vector<size_t> &&column_indices);
+    explicit SelectAnswer(std::vector<size_t> &&column_indices);
     void Execute(Batch &batch) override;
 
   private:

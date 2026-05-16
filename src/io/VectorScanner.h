@@ -4,8 +4,8 @@
 
 class VectorScanner : public BatchScanner {
   public:
-    VectorScanner(const std::vector<Batch> &batches);
-    VectorScanner(std::vector<Batch> &&batches);
+    explicit VectorScanner(const std::vector<Batch> &batches);
+    explicit VectorScanner(std::vector<Batch> &&batches);
     Batch ReadNext() override;
     bool IsEnd() const override;
 

@@ -8,7 +8,7 @@ class Engine {
   public:
     Engine(const Filename &data, const Filename &scheme,
            const Filename &columnar = "test.hub");
-    Engine(const Filename &columnar);
+    explicit Engine(const Filename &columnar);
 
     void TakeAll(const Filename &result_name);
     void Execute(Pipeline &pipeline);

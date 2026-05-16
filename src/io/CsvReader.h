@@ -8,7 +8,7 @@ using Row = std::vector<std::string>;
 
 class CsvReader {
   public:
-    CsvReader(const std::string &filename, char sep = ',');
+    explicit CsvReader(const std::string &filename, char sep = ',');
 
     void ReadNext(Row &row);
     bool IsEnd();

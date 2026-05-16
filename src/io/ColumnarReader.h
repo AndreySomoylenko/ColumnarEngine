@@ -9,7 +9,7 @@
 class ColumnarReader {
   public:
     ColumnarReader() = default;
-    ColumnarReader(const std::string &columnar);
+    explicit ColumnarReader(const std::string &columnar);
     ColumnarReader &operator=(ColumnarReader &&other) = default;
     Batch ReadNext(const Scheme &scheme, size_t &cur_index);
     bool IsEnd(size_t cur_batch) const;

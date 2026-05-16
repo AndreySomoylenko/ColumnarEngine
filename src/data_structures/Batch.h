@@ -9,9 +9,9 @@ using Row = std::vector<std::string>;
 
 class Batch {
   public:
-    Batch(const Scheme &scheme, bool reserve = true);
+    explicit Batch(const Scheme &scheme, bool reserve = true);
 
-    Batch(Scheme &&scheme, bool reserve = true);
+    explicit Batch(Scheme &&scheme, bool reserve = true);
     void AddRow(const Row &row);
     void AddToColumn(const std::string &value, const size_t index);
     void AddToColumn(const char *data, size_t sz, const size_t index);
