@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-#include "io/CSVReader.h"
+#include "io/CsvReader.h"
 #include "utils/HitsColumns.h"
 
 #ifndef COLUMNAR_TEST_FIXTURES_DIR
@@ -12,7 +12,7 @@
 TEST(HitsColumnsTest, MatchesFixtureSchemeOrder) {
     const auto scheme_path =
         std::filesystem::path(COLUMNAR_TEST_FIXTURES_DIR) / "scheme.csv";
-    CSVReader reader(scheme_path.string());
+    CsvReader reader(scheme_path.string());
 
     Row row;
     size_t index = 0;

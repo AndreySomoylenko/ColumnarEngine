@@ -1,4 +1,4 @@
-#include "Scheme.h"
+#include "data_structures/Scheme.h"
 #include "data_structures/Column.h"
 #include <stdexcept>
 #include <vector>

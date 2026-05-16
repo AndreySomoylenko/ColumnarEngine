@@ -5,8 +5,8 @@
 
 #include <gtest/gtest.h>
 
-#include "io/CSVReader.h"
-#include "io/CSVWriter.h"
+#include "io/CsvReader.h"
+#include "io/CsvWriter.h"
 
 namespace {
 
@@ -50,7 +50,7 @@ TEST_F(CsvIoTest, ReaderParsesQuotedFieldsAndEmptyCells) {
     WriteText(Path("input.csv"),
               "id,,\"name,with,comma\",\"he said \"\"hi\"\"\",\"\"\n");
 
-    CSVReader reader(Path("input.csv").string());
+    CsvReader reader(Path("input.csv").string());
     Row row;
 
     reader.ReadNext(row);
@@ -61,7 +61,7 @@ TEST_F(CsvIoTest, ReaderParsesQuotedFieldsAndEmptyCells) {
 TEST_F(CsvIoTest, ReaderKeepsTrailingEmptyFields) {
     WriteText(Path("input.csv"), "a,b,\n,\n\n");
 
-    CSVReader reader(Path("input.csv").string());
+    CsvReader reader(Path("input.csv").string());
     Row row;
 
     reader.ReadNext(row);
@@ -79,7 +79,7 @@ TEST_F(CsvIoTest, ReaderKeepsTrailingEmptyFields) {
 TEST_F(CsvIoTest, ReaderSupportsCustomSeparators) {
     WriteText(Path("input.csv"), "\"a;b\";c\n");
 
-    CSVReader reader(Path("input.csv").string(), ';');
+    CsvReader reader(Path("input.csv").string(), ';');
     Row row;
 
     reader.ReadNext(row);
@@ -89,7 +89,7 @@ TEST_F(CsvIoTest, ReaderSupportsCustomSeparators) {
 TEST_F(CsvIoTest, ReaderRejectsUnclosedQuotes) {
     WriteText(Path("input.csv"), "\"unterminated\n");
 
-    CSVReader reader(Path("input.csv").string());
+    CsvReader reader(Path("input.csv").string());
     Row row;
 
     EXPECT_THROW(reader.ReadNext(row), std::invalid_argument);
@@ -98,7 +98,7 @@ TEST_F(CsvIoTest, ReaderRejectsUnclosedQuotes) {
 TEST_F(CsvIoTest, ReaderMovesThroughMultipleRows) {
     WriteText(Path("input.csv"), "a,b,c\n1,2,3\n");
 
-    CSVReader reader(Path("input.csv").string());
+    CsvReader reader(Path("input.csv").string());
     Row row;
 
     reader.ReadNext(row);
@@ -115,13 +115,13 @@ TEST_F(CsvIoTest, ReaderMovesThroughMultipleRows) {
 }
 
 TEST_F(CsvIoTest, ReaderThrowsForMissingFile) {
-    EXPECT_THROW(CSVReader reader(Path("missing.csv").string()),
+    EXPECT_THROW(CsvReader reader(Path("missing.csv").string()),
                  std::invalid_argument);
 }
 
 TEST_F(CsvIoTest, WriterQuotesAndEscapesFields) {
     {
-        CSVWriter writer(Path("out.csv").string());
+        CsvWriter writer(Path("out.csv").string());
         writer.WriteRow({"a", "", "b,c", "he said \"hi\""});
     }
 
@@ -131,12 +131,12 @@ TEST_F(CsvIoTest, WriterQuotesAndEscapesFields) {
 
 TEST_F(CsvIoTest, WriterRoundTripsThroughReader) {
     {
-        CSVWriter writer(Path("roundtrip.csv").string());
+        CsvWriter writer(Path("roundtrip.csv").string());
         writer.WriteRow({"1", "Ivanov, Ivan"});
         writer.WriteRow({"2", "Petrov \"Petr\""});
     }
 
-    CSVReader reader(Path("roundtrip.csv").string());
+    CsvReader reader(Path("roundtrip.csv").string());
     Row row;
 
     reader.ReadNext(row);
@@ -149,12 +149,12 @@ TEST_F(CsvIoTest, WriterRoundTripsThroughReader) {
 
 TEST_F(CsvIoTest, WriterThrowsWhenDirectoryIsMissing) {
     const auto bad_path = Path("missing-dir/out.csv");
-    EXPECT_THROW(CSVWriter writer(bad_path.string()), std::invalid_argument);
+    EXPECT_THROW(CsvWriter writer(bad_path.string()), std::invalid_argument);
 }
 
 TEST_F(CsvIoTest, WriterSupportsCustomSeparators) {
     {
-        CSVWriter writer(Path("semi.csv").string(), ';');
+        CsvWriter writer(Path("semi.csv").string(), ';');
         writer.WriteRow({"a;b", "c"});
     }
 

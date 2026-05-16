@@ -1,14 +1,14 @@
-#include <memory>
 #include <cstring>
 #include <map>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <unordered_set>
 
 #include <gtest/gtest.h>
 
-#include "data_structures/Column.h"
 #include "data_structures/Batch.h"
+#include "data_structures/Column.h"
 #include "operations/Aggregations.h"
 #include "operations/Operations.h"
 
@@ -109,6 +109,21 @@ TEST(AggregationTest, AvgThrowsForEmptyEnabledSelection) {
                  std::invalid_argument);
 }
 
+TEST(AggregationTest, MinMaxThrowForEmptyEnabledSelection) {
+    auto int_column = MakeIntColumn({"1", "2"});
+    auto str_column = MakeStringColumn({"a", "b"});
+    EnabledRaws selected = std::unordered_set<size_t>{};
+
+    EXPECT_THROW((void)agg::Min<int64_t>(int_column, selected),
+                 std::invalid_argument);
+    EXPECT_THROW((void)agg::Max<int64_t>(int_column, selected),
+                 std::invalid_argument);
+    EXPECT_THROW((void)agg::Min<std::string>(str_column, selected),
+                 std::invalid_argument);
+    EXPECT_THROW((void)agg::Max<std::string>(str_column, selected),
+                 std::invalid_argument);
+}
+
 TEST(AggregationOperationTest, ComputesMultipleAggregatesAcrossBatches) {
     Scheme scheme;
     scheme.Add({"region", "int64"});
@@ -123,19 +138,14 @@ TEST(AggregationOperationTest, ComputesMultipleAggregatesAcrossBatches) {
     second.AddRow({"3", "30", "a"});
     second.AddRow({"4", "40", "c"});
 
-    Aggregation aggregation({AggTask{1, AggType::Sum, ColumnTypes::Int128,
-                                     "sum_width"},
-                             AggTask{1, AggType::Avg, ColumnTypes::Double,
-                                     "avg_width"},
-                             AggTask{0, AggType::Min, ColumnTypes::Int64,
-                                     "min_region"},
-                             AggTask{0, AggType::Max, ColumnTypes::Int64,
-                                     "max_region"},
-                             AggTask{0, AggType::Count, ColumnTypes::Int64,
-                                     "count_rows"},
-                             AggTask{2, AggType::CountDistinct,
-                                     ColumnTypes::Int64,
-                                     "distinct_phrases"}});
+    Aggregation aggregation(
+        {AggTask{1, AggType::Sum, ColumnTypes::Int128, "sum_width"},
+         AggTask{1, AggType::Avg, ColumnTypes::Double, "avg_width"},
+         AggTask{0, AggType::Min, ColumnTypes::Int64, "min_region"},
+         AggTask{0, AggType::Max, ColumnTypes::Int64, "max_region"},
+         AggTask{0, AggType::Count, ColumnTypes::Int64, "count_rows"},
+         AggTask{2, AggType::CountDistinct, ColumnTypes::Int64,
+                 "distinct_phrases"}});
 
     aggregation.Process(first);
     aggregation.Process(second);
@@ -156,17 +166,15 @@ TEST(AggregationOperationTest, RespectsEnabledRowsFromFilter) {
     batch.AddRow({"2", "20"});
     batch.AddRow({"3", "30"});
 
-    Filter filter({FilterTask{
-        0, [](const char *data, size_t) {
-            int64_t value;
-            std::memcpy(&value, data, sizeof(value));
-            return value >= 2;
-        }}});
+    Filter filter({FilterTask{0, [](const char *data, size_t) {
+                                  int64_t value;
+                                  std::memcpy(&value, data, sizeof(value));
+                                  return value >= 2;
+                              }}});
 
-    Aggregation aggregation({AggTask{1, AggType::Sum, ColumnTypes::Int128,
-                                     "sum_value"},
-                             AggTask{1, AggType::Count, ColumnTypes::Int64,
-                                     "count_rows"}});
+    Aggregation aggregation(
+        {AggTask{1, AggType::Sum, ColumnTypes::Int128, "sum_value"},
+         AggTask{1, AggType::Count, ColumnTypes::Int64, "count_rows"}});
 
     filter.Execute(batch);
     aggregation.Process(batch);
@@ -205,13 +213,12 @@ TEST(FilterTest, SelectsRowsFromUnfilteredBatch) {
     batch.AddRow({"2", "Bob"});
     batch.AddRow({"3", "Carol"});
 
-    Filter filter({FilterTask{
-        0, [](const char *data, size_t size) {
-            EXPECT_EQ(size, sizeof(int64_t));
-            int64_t value;
-            std::memcpy(&value, data, sizeof(value));
-            return value >= 2;
-        }}});
+    Filter filter({FilterTask{0, [](const char *data, size_t size) {
+                                  EXPECT_EQ(size, sizeof(int64_t));
+                                  int64_t value;
+                                  std::memcpy(&value, data, sizeof(value));
+                                  return value >= 2;
+                              }}});
 
     filter.Execute(batch);
 
@@ -232,16 +239,15 @@ TEST(FilterTest, IntersectsMultipleConditionsWithoutDroppingColumns) {
     batch.AddRow({"2", "Bob"});
     batch.AddRow({"3", "Bob"});
 
-    Filter filter({FilterTask{
-                       0, [](const char *data, size_t) {
-                           int64_t value;
-                           std::memcpy(&value, data, sizeof(value));
-                           return value >= 2;
-                       }},
-                   FilterTask{
-                       1, [](const char *data, size_t size) {
-                           return std::string(data, size) == "Bob";
-                       }}});
+    Filter filter({FilterTask{0,
+                              [](const char *data, size_t) {
+                                  int64_t value;
+                                  std::memcpy(&value, data, sizeof(value));
+                                  return value >= 2;
+                              }},
+                   FilterTask{1, [](const char *data, size_t size) {
+                                  return std::string(data, size) == "Bob";
+                              }}});
 
     filter.Execute(batch);
 
@@ -260,8 +266,7 @@ TEST(FilterTest, CanSelectNoRows) {
     batch.AddRow({"1"});
     batch.AddRow({"2"});
 
-    Filter filter({FilterTask{
-        0, [](const char *, size_t) { return false; }}});
+    Filter filter({FilterTask{0, [](const char *, size_t) { return false; }}});
 
     filter.Execute(batch);
 
@@ -401,10 +406,9 @@ TEST(TopKTest, RespectsEnabledRowsAndReturnsAllRowsWhenKIsLarge) {
     batch.AddRow({"3", "top"});
     batch.AddRow({"2", "mid"});
 
-    Filter filter({FilterTask{
-        1, [](const char *data, size_t size) {
-            return std::string(data, size) != "hidden";
-        }}});
+    Filter filter({FilterTask{1, [](const char *data, size_t size) {
+                                  return std::string(data, size) != "hidden";
+                              }}});
 
     TopK top_k({SortKey{0, SortDirection::Descending}}, 10, scheme);
     filter.Execute(batch);
@@ -436,9 +440,8 @@ TEST(GroupByTest, CountsRowsByStringKey) {
         actual[row[0]] = row[1];
     }
 
-    EXPECT_EQ(actual,
-              (std::map<std::string, std::string>{{"mail", "1"},
-                                                  {"search", "2"}}));
+    EXPECT_EQ(actual, (std::map<std::string, std::string>{{"mail", "1"},
+                                                          {"search", "2"}}));
 }
 
 TEST(GroupByTest, SumsNumericColumnByIntKey) {
@@ -476,12 +479,12 @@ TEST(GroupByTest, ComputesMultipleAggregatesPerGroup) {
     batch.AddRow({"1", "1", "200", "9"});
     batch.AddRow({"2", "8", "400", "7"});
 
-    GroupBy group_by({{AggType::Sum, AggType::Count, AggType::Avg,
-                       AggType::CountDistinct},
-                      {0},
-                      0,
-                      {1, 0, 2, 3}},
-                     scheme);
+    GroupBy group_by(
+        {{AggType::Sum, AggType::Count, AggType::Avg, AggType::CountDistinct},
+         {0},
+         0,
+         {1, 0, 2, 3}},
+        scheme);
     group_by.Process(batch);
 
     auto rows = RowsByFirstColumn(std::move(group_by).Finalize());
@@ -657,11 +660,10 @@ TEST(ExpressionTest, AddsComputedColumnsAndKeepsOriginalRows) {
     scheme.Add({"referer", "string"});
 
     Batch batch(scheme, false);
-    batch.AddRow({"100", "https://www.example.com/path",
-                  "2013-07-14 20:38:47", "0", "0",
-                  "https://www.ref.example/search"});
-    batch.AddRow({"200", "http://other.test/a", "2013-07-14 20:05:11",
-                  "1", "0", "https://ignored.test/path"});
+    batch.AddRow({"100", "https://www.example.com/path", "2013-07-14 20:38:47",
+                  "0", "0", "https://www.ref.example/search"});
+    batch.AddRow({"200", "http://other.test/a", "2013-07-14 20:05:11", "1", "0",
+                  "https://ignored.test/path"});
 
     Expression expression(
         {MakeAddInt64ConstantExpression(0, 5, "width_plus_5"),
@@ -683,21 +685,10 @@ TEST(ExpressionTest, AddsComputedColumnsAndKeepsOriginalRows) {
     EXPECT_EQ(result.GetScheme().GetSchemeNames()[14], "domain");
 
     EXPECT_EQ(result.GetRow(0),
-              (Row{"100",
-                   "https://www.example.com/path",
-                   "2013-07-14 20:38:47",
-                   "0",
-                   "0",
-                   "https://www.ref.example/search",
-                   "105",
-                   "90",
-                   "28",
-                   "38",
-                   "2013-07-14 20:38:00",
-                   "1",
-                   "",
-                   "https://www.ref.example/search",
-                   "example.com"}));
+              (Row{"100", "https://www.example.com/path", "2013-07-14 20:38:47",
+                   "0", "0", "https://www.ref.example/search", "105", "90",
+                   "28", "38", "2013-07-14 20:38:00", "1", "",
+                   "https://www.ref.example/search", "example.com"}));
     EXPECT_EQ(result.GetRow(1)[13], "");
     EXPECT_EQ(result.GetRow(1)[14], "other.test");
 }
@@ -711,14 +702,13 @@ TEST(ExpressionTest, AppendsComputedColumnsAndRespectsFilter) {
     batch.AddRow({"1", "drop"});
     batch.AddRow({"2", "keep"});
 
-    Filter filter({FilterTask{
-        1, [](const char *data, size_t size) {
-            return std::string(data, size) == "keep";
-        }}});
+    Filter filter({FilterTask{1, [](const char *data, size_t size) {
+                                  return std::string(data, size) == "keep";
+                              }}});
 
-    Expression expression({MakeConstantStringExpression("x", "marker"),
-                           MakeCopyColumnExpression(0, "id_copy",
-                                                    ColumnTypes::Int64)});
+    Expression expression(
+        {MakeConstantStringExpression("x", "marker"),
+         MakeCopyColumnExpression(0, "id_copy", ColumnTypes::Int64)});
 
     filter.Execute(batch);
     expression.Execute(batch);
@@ -745,16 +735,14 @@ TEST(OperationBuilderTest, BuildsOperationsWithReadableHelpers) {
 
     auto filter = MakeFilter(
         {MakeInt64Filter(1, [](int64_t value) { return value >= 20; }),
-         MakeStringFilter(2, [](std::string_view value) {
-             return value == "keep";
-         })});
+         MakeStringFilter(
+             2, [](std::string_view value) { return value == "keep"; })});
     filter.Execute(batch);
 
-    auto aggregation = MakeAggregation(
-        {MakeSumAgg(1, "sum_value"), MakeCountAgg(0, "rows")});
+    auto aggregation =
+        MakeAggregation({MakeSumAgg(1, "sum_value"), MakeCountAgg(0, "rows")});
     aggregation.Process(batch);
-    EXPECT_EQ(ReadRows(std::move(aggregation).Finalize())[0],
-              (Row{"50", "2"}));
+    EXPECT_EQ(ReadRows(std::move(aggregation).Finalize())[0], (Row{"50", "2"}));
 
     auto group_by = MakeGroupBy(
         MakeGroupByTask({0}, {MakeGroupSum(1), MakeGroupCount(0)}), scheme);

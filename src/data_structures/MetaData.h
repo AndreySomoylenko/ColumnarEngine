@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Scheme.h"
+#include "data_structures/Scheme.h"
 #include <vector>
 
 struct MetaData {

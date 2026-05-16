@@ -1,13 +1,13 @@
-#include "Engine.h"
+#include "core/Engine.h"
 #include "core/Pipeline.h"
 #include "core/ProjectionBuilder.h"
 #include "data_structures/Batch.h"
 #include "data_structures/Scheme.h"
-#include "io/CSVReader.h"
-#include "io/CSVWriter.h"
 #include "io/ColumnarReader.h"
 #include "io/ColumnarWriter.h"
-#include "io/IOScanner.h"
+#include "io/CsvReader.h"
+#include "io/CsvWriter.h"
+#include "io/IoScanner.h"
 #include "operations/Operations.h"
 #include <filesystem>
 #include <initializer_list>
@@ -36,7 +36,7 @@ Scheme CopyScheme(const Scheme &scheme) {
 
 Engine::Engine(const Filename &data, const Filename &scheme,
                const Filename &columnar) {
-    CSVReader scheme_reader(scheme);
+    CsvReader scheme_reader(scheme);
 
     Scheme t_scheme;
 
@@ -52,7 +52,7 @@ Engine::Engine(const Filename &data, const Filename &scheme,
 
     Batch tmp(t_scheme);
 
-    CSVReader data_reader(data);
+    CsvReader data_reader(data);
 
     ColumnarWriter writer(columnar);
 
@@ -79,7 +79,7 @@ Engine::Engine(const Filename &data, const Filename &scheme,
         tmp.Clear();
     }
 
-    writer.Close(t_scheme);
+    std::move(writer).Close(t_scheme);
 
     reader_ = ColumnarReader(columnar);
 }
@@ -89,8 +89,8 @@ Engine::Engine(const Filename &columnar) : reader_(columnar) {}
 void Engine::TakeAll(const Filename &result_name) {
     const Scheme &scheme = reader_.GetScheme();
 
-    IOScanner scanner(scheme, reader_);
-    CSVWriter result_writer(result_name);
+    IoScanner scanner(scheme, reader_);
+    CsvWriter result_writer(result_name);
 
     while (!scanner.IsEnd()) {
         Batch chunk = scanner.ReadNext();
@@ -103,7 +103,7 @@ void Engine::TakeAll(const Filename &result_name) {
     const std::filesystem::path scheme_path =
         result_path.parent_path() /
         ("scheme_" + result_path.filename().string());
-    CSVWriter scheme_writer(scheme_path.string());
+    CsvWriter scheme_writer(scheme_path.string());
     for (const Row &row : scheme.GiveRows()) {
         scheme_writer.WriteRow(row);
     }
@@ -273,8 +273,8 @@ void Engine::Make08Querry() {
     operations.emplace_back(std::make_unique<GroupBy>(
         MakeGroupBy(MakeGroupByTask({adv_engine_id}, {MakeGroupCount()}),
                     projection.ReadScheme())));
-    operations.emplace_back(std::make_unique<TopK>(MakeTopK(
-        {MakeDescendingSortKey(1)}, 100000, result_scheme)));
+    operations.emplace_back(std::make_unique<TopK>(
+        MakeTopK({MakeDescendingSortKey(1)}, 100000, result_scheme)));
 
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
                       "query08.csv");
@@ -286,15 +286,15 @@ void Engine::Make09Querry() {
     const size_t region_id = projection.Require(hits::HitsColumn::RegionID);
     const size_t user_id = projection.Require(hits::HitsColumn::UserID);
 
-    Scheme result_scheme = MakeScheme(
-        {{"RegionID", "int32"}, {"result_count_distinct", "int64"}});
+    Scheme result_scheme =
+        MakeScheme({{"RegionID", "int32"}, {"result_count_distinct", "int64"}});
 
     std::vector<std::unique_ptr<Operation>> operations;
     operations.emplace_back(std::make_unique<GroupBy>(MakeGroupBy(
         MakeGroupByTask({region_id}, {MakeGroupCountDistinct(user_id)}),
         projection.ReadScheme())));
-    operations.emplace_back(std::make_unique<TopK>(MakeTopK(
-        {MakeDescendingSortKey(1)}, 10, result_scheme)));
+    operations.emplace_back(std::make_unique<TopK>(
+        MakeTopK({MakeDescendingSortKey(1)}, 10, result_scheme)));
 
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
                       "query09.csv");
@@ -310,12 +310,11 @@ void Engine::Make10Querry() {
         projection.Require(hits::HitsColumn::ResolutionWidth);
     const size_t user_id = projection.Require(hits::HitsColumn::UserID);
 
-    Scheme result_scheme =
-        MakeScheme({{"RegionID", "int32"},
-                    {"result_sum", "int128"},
-                    {"result_count", "int64"},
-                    {"result_avg", "int128"},
-                    {"result_count_distinct", "int64"}});
+    Scheme result_scheme = MakeScheme({{"RegionID", "int32"},
+                                       {"result_sum", "int128"},
+                                       {"result_count", "int64"},
+                                       {"result_avg", "int128"},
+                                       {"result_count_distinct", "int64"}});
 
     std::vector<std::unique_ptr<Operation>> operations;
     operations.emplace_back(std::make_unique<GroupBy>(MakeGroupBy(
@@ -324,8 +323,8 @@ void Engine::Make10Querry() {
                          MakeGroupAvg(resolution_width),
                          MakeGroupCountDistinct(user_id)}),
         projection.ReadScheme())));
-    operations.emplace_back(std::make_unique<TopK>(MakeTopK(
-        {MakeDescendingSortKey(2)}, 10, result_scheme)));
+    operations.emplace_back(std::make_unique<TopK>(
+        MakeTopK({MakeDescendingSortKey(2)}, 10, result_scheme)));
 
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
                       "query10.csv");
@@ -342,15 +341,15 @@ void Engine::Make11Querry() {
         {{"MobilePhoneModel", "string"}, {"result_count_distinct", "int64"}});
 
     std::vector<std::unique_ptr<Operation>> operations;
-    operations.emplace_back(std::make_unique<Filter>(MakeFilter(
-        {MakeStringNotEqualFilter(mobile_phone_model, "")})));
-    operations.emplace_back(std::make_unique<GroupBy>(MakeGroupBy(
-        MakeGroupByTask({mobile_phone_model},
-                        {MakeGroupCountDistinct(user_id)}),
-        projection.ReadScheme())));
-    operations.emplace_back(std::make_unique<TopK>(MakeTopK(
-        {MakeDescendingSortKey(1), MakeDescendingSortKey(0)}, 10,
-        result_scheme)));
+    operations.emplace_back(std::make_unique<Filter>(
+        MakeFilter({MakeStringNotEqualFilter(mobile_phone_model, "")})));
+    operations.emplace_back(std::make_unique<GroupBy>(
+        MakeGroupBy(MakeGroupByTask({mobile_phone_model},
+                                    {MakeGroupCountDistinct(user_id)}),
+                    projection.ReadScheme())));
+    operations.emplace_back(std::make_unique<TopK>(
+        MakeTopK({MakeDescendingSortKey(1), MakeDescendingSortKey(0)}, 10,
+                 result_scheme)));
 
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
                       "query11.csv");
@@ -365,22 +364,21 @@ void Engine::Make12Querry() {
         projection.Require(hits::HitsColumn::MobilePhoneModel);
     const size_t user_id = projection.Require(hits::HitsColumn::UserID);
 
-    Scheme result_scheme =
-        MakeScheme({{"MobilePhone", "int16"},
-                    {"MobilePhoneModel", "string"},
-                    {"result_count_distinct", "int64"}});
+    Scheme result_scheme = MakeScheme({{"MobilePhone", "int16"},
+                                       {"MobilePhoneModel", "string"},
+                                       {"result_count_distinct", "int64"}});
 
     std::vector<std::unique_ptr<Operation>> operations;
-    operations.emplace_back(std::make_unique<Filter>(MakeFilter(
-        {MakeStringNotEqualFilter(mobile_phone_model, "")})));
-    operations.emplace_back(std::make_unique<GroupBy>(MakeGroupBy(
-        MakeGroupByTask({mobile_phone, mobile_phone_model},
-                        {MakeGroupCountDistinct(user_id)}),
-        projection.ReadScheme())));
-    operations.emplace_back(std::make_unique<TopK>(MakeTopK(
-        {MakeDescendingSortKey(2), MakeDescendingSortKey(0),
-         MakeDescendingSortKey(1)},
-        10, result_scheme)));
+    operations.emplace_back(std::make_unique<Filter>(
+        MakeFilter({MakeStringNotEqualFilter(mobile_phone_model, "")})));
+    operations.emplace_back(std::make_unique<GroupBy>(
+        MakeGroupBy(MakeGroupByTask({mobile_phone, mobile_phone_model},
+                                    {MakeGroupCountDistinct(user_id)}),
+                    projection.ReadScheme())));
+    operations.emplace_back(std::make_unique<TopK>(
+        MakeTopK({MakeDescendingSortKey(2), MakeDescendingSortKey(0),
+                  MakeDescendingSortKey(1)},
+                 10, result_scheme)));
 
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
                       "query12.csv");
@@ -401,8 +399,8 @@ void Engine::Make13Querry() {
     operations.emplace_back(std::make_unique<GroupBy>(
         MakeGroupBy(MakeGroupByTask({search_phrase}, {MakeGroupCount()}),
                     projection.ReadScheme())));
-    operations.emplace_back(std::make_unique<TopK>(MakeTopK(
-        {MakeDescendingSortKey(1)}, 10, result_scheme)));
+    operations.emplace_back(std::make_unique<TopK>(
+        MakeTopK({MakeDescendingSortKey(1)}, 10, result_scheme)));
 
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
                       "query13.csv");
@@ -424,8 +422,8 @@ void Engine::Make14Querry() {
     operations.emplace_back(std::make_unique<GroupBy>(MakeGroupBy(
         MakeGroupByTask({search_phrase}, {MakeGroupCountDistinct(user_id)}),
         projection.ReadScheme())));
-    operations.emplace_back(std::make_unique<TopK>(MakeTopK(
-        {MakeDescendingSortKey(1)}, 10, result_scheme)));
+    operations.emplace_back(std::make_unique<TopK>(
+        MakeTopK({MakeDescendingSortKey(1)}, 10, result_scheme)));
 
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
                       "query14.csv");
@@ -449,8 +447,8 @@ void Engine::Make15Querry() {
     operations.emplace_back(std::make_unique<GroupBy>(MakeGroupBy(
         MakeGroupByTask({search_engine_id, search_phrase}, {MakeGroupCount()}),
         projection.ReadScheme())));
-    operations.emplace_back(std::make_unique<TopK>(MakeTopK(
-        {MakeDescendingSortKey(2)}, 10, result_scheme)));
+    operations.emplace_back(std::make_unique<TopK>(
+        MakeTopK({MakeDescendingSortKey(2)}, 10, result_scheme)));
 
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
                       "query15.csv");
@@ -468,8 +466,8 @@ void Engine::Make16Querry() {
     operations.emplace_back(std::make_unique<GroupBy>(
         MakeGroupBy(MakeGroupByTask({user_id}, {MakeGroupCount()}),
                     projection.ReadScheme())));
-    operations.emplace_back(std::make_unique<TopK>(MakeTopK(
-        {MakeDescendingSortKey(1)}, 10, result_scheme)));
+    operations.emplace_back(std::make_unique<TopK>(
+        MakeTopK({MakeDescendingSortKey(1)}, 10, result_scheme)));
 
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
                       "query16.csv");
@@ -490,8 +488,8 @@ void Engine::Make17Querry() {
     operations.emplace_back(std::make_unique<GroupBy>(MakeGroupBy(
         MakeGroupByTask({user_id, search_phrase}, {MakeGroupCount()}),
         projection.ReadScheme())));
-    operations.emplace_back(std::make_unique<TopK>(MakeTopK(
-        {MakeDescendingSortKey(2)}, 10, result_scheme)));
+    operations.emplace_back(std::make_unique<TopK>(
+        MakeTopK({MakeDescendingSortKey(2)}, 10, result_scheme)));
 
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
                       "query17.csv");
@@ -512,10 +510,9 @@ void Engine::Make18Querry() {
     operations.emplace_back(std::make_unique<GroupBy>(MakeGroupBy(
         MakeGroupByTask({user_id, search_phrase}, {MakeGroupCount()}),
         projection.ReadScheme())));
-    operations.emplace_back(
-        std::make_unique<TopK>(MakeTopK(
-            {MakeAscendingSortKey(0), MakeAscendingSortKey(1)}, 10,
-            result_scheme)));
+    operations.emplace_back(std::make_unique<TopK>(
+        MakeTopK({MakeAscendingSortKey(0), MakeAscendingSortKey(1)}, 10,
+                 result_scheme)));
 
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
                       "query18.csv");
@@ -538,17 +535,17 @@ void Engine::Make19Querry() {
     std::vector<std::unique_ptr<Operation>> operations;
     operations.emplace_back(std::make_unique<Expression>(
         MakeExpression({MakeExtractMinuteExpression(event_time, "m")})));
-    operations.emplace_back(std::make_unique<GroupBy>(MakeGroupBy(
-        MakeGroupByTask({user_id, minute_column, search_phrase},
-                        {MakeGroupCount()}),
-        MakeScheme({{"UserID", "int64"},
-                    {"EventTime", "timestamp"},
-                    {"SearchPhrase", "string"},
-                    {"m", "int64"}}))));
-    operations.emplace_back(std::make_unique<TopK>(MakeTopK(
-        {MakeDescendingSortKey(3), MakeAscendingSortKey(0),
-         MakeAscendingSortKey(1), MakeAscendingSortKey(2)},
-        10, result_scheme)));
+    operations.emplace_back(std::make_unique<GroupBy>(
+        MakeGroupBy(MakeGroupByTask({user_id, minute_column, search_phrase},
+                                    {MakeGroupCount()}),
+                    MakeScheme({{"UserID", "int64"},
+                                {"EventTime", "timestamp"},
+                                {"SearchPhrase", "string"},
+                                {"m", "int64"}}))));
+    operations.emplace_back(std::make_unique<TopK>(
+        MakeTopK({MakeDescendingSortKey(3), MakeAscendingSortKey(0),
+                  MakeAscendingSortKey(1), MakeAscendingSortKey(2)},
+                 10, result_scheme)));
 
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
                       "query19.csv");
@@ -590,15 +587,14 @@ void Engine::Make22Querry() {
                                        {"result_min", "string"},
                                        {"result_count", "int64"}});
     std::vector<std::unique_ptr<Operation>> operations;
-    operations.emplace_back(std::make_unique<Filter>(MakeFilter(
-        {MakeStringLikeFilter(url, "%google%"),
-         MakeStringNotEqualFilter(search_phrase, "")})));
+    operations.emplace_back(std::make_unique<Filter>(
+        MakeFilter({MakeStringLikeFilter(url, "%google%"),
+                    MakeStringNotEqualFilter(search_phrase, "")})));
     operations.emplace_back(std::make_unique<GroupBy>(MakeGroupBy(
-        MakeGroupByTask({search_phrase},
-                        {MakeGroupMin(url), MakeGroupCount()}),
+        MakeGroupByTask({search_phrase}, {MakeGroupMin(url), MakeGroupCount()}),
         projection.ReadScheme())));
-    operations.emplace_back(std::make_unique<TopK>(MakeTopK(
-        {MakeDescendingSortKey(2)}, 10, result_scheme)));
+    operations.emplace_back(std::make_unique<TopK>(
+        MakeTopK({MakeDescendingSortKey(2)}, 10, result_scheme)));
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
                       "query22.csv");
     Execute(pipeline);
@@ -617,17 +613,17 @@ void Engine::Make23Querry() {
                                        {"result_count", "int64"},
                                        {"result_count_distinct", "int64"}});
     std::vector<std::unique_ptr<Operation>> operations;
-    operations.emplace_back(std::make_unique<Filter>(MakeFilter(
-        {MakeStringLikeFilter(title, "%Google%"),
-         MakeStringNotLikeFilter(url, "%.google.%"),
-         MakeStringNotEqualFilter(search_phrase, "")})));
+    operations.emplace_back(std::make_unique<Filter>(
+        MakeFilter({MakeStringLikeFilter(title, "%Google%"),
+                    MakeStringNotLikeFilter(url, "%.google.%"),
+                    MakeStringNotEqualFilter(search_phrase, "")})));
     operations.emplace_back(std::make_unique<GroupBy>(MakeGroupBy(
         MakeGroupByTask({search_phrase},
                         {MakeGroupMin(url), MakeGroupMin(title),
                          MakeGroupCount(), MakeGroupCountDistinct(user_id)}),
         projection.ReadScheme())));
-    operations.emplace_back(std::make_unique<TopK>(MakeTopK(
-        {MakeDescendingSortKey(3)}, 10, result_scheme)));
+    operations.emplace_back(std::make_unique<TopK>(
+        MakeTopK({MakeDescendingSortKey(3)}, 10, result_scheme)));
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
                       "query23.csv");
     Execute(pipeline);
@@ -636,12 +632,13 @@ void Engine::Make23Querry() {
 void Engine::Make24Querry() {
     Scheme read_scheme = CopyScheme(reader_.GetScheme());
     std::vector<std::unique_ptr<Operation>> operations;
-    operations.emplace_back(std::make_unique<Filter>(
-        MakeFilter({MakeStringLikeFilter(
+    operations.emplace_back(
+        std::make_unique<Filter>(MakeFilter({MakeStringLikeFilter(
             static_cast<size_t>(hits::HitsColumn::URL), "%google%")})));
-    operations.emplace_back(std::make_unique<TopK>(MakeTopK(
-        {MakeAscendingSortKey(static_cast<size_t>(hits::HitsColumn::EventTime))},
-        10, read_scheme)));
+    operations.emplace_back(std::make_unique<TopK>(
+        MakeTopK({MakeAscendingSortKey(
+                     static_cast<size_t>(hits::HitsColumn::EventTime))},
+                 10, read_scheme)));
     Pipeline pipeline(std::move(operations), reader_, read_scheme,
                       "query24.csv");
     Execute(pipeline);
@@ -657,8 +654,8 @@ void Engine::Make25Querry() {
     std::vector<std::unique_ptr<Operation>> operations;
     operations.emplace_back(std::make_unique<Filter>(
         MakeFilter({MakeStringNotEqualFilter(search_phrase, "")})));
-    operations.emplace_back(std::make_unique<TopK>(MakeTopK(
-        {MakeAscendingSortKey(event_time)}, 10, result_scheme)));
+    operations.emplace_back(std::make_unique<TopK>(
+        MakeTopK({MakeAscendingSortKey(event_time)}, 10, result_scheme)));
     operations.emplace_back(
         std::make_unique<SelectAnswer>(MakeSelectAnswer({search_phrase})));
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
@@ -674,8 +671,8 @@ void Engine::Make26Querry() {
     std::vector<std::unique_ptr<Operation>> operations;
     operations.emplace_back(std::make_unique<Filter>(
         MakeFilter({MakeStringNotEqualFilter(search_phrase, "")})));
-    operations.emplace_back(std::make_unique<TopK>(MakeTopK(
-        {MakeAscendingSortKey(search_phrase)}, 10, result_scheme)));
+    operations.emplace_back(std::make_unique<TopK>(
+        MakeTopK({MakeAscendingSortKey(search_phrase)}, 10, result_scheme)));
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
                       "query26.csv");
     Execute(pipeline);
@@ -706,24 +703,24 @@ void Engine::Make28Querry() {
     const size_t counter_id = projection.Require(hits::HitsColumn::CounterID);
     const size_t url = projection.Require(hits::HitsColumn::URL);
     const size_t url_len = 2;
-    Scheme expr_scheme = MakeScheme(
-        {{"CounterID", "int32"}, {"URL", "string"}, {"l", "int64"}});
-    Scheme result_scheme =
-        MakeScheme({{"CounterID", "int32"}, {"result_avg", "int128"},
-                    {"result_count", "int64"}});
+    Scheme expr_scheme =
+        MakeScheme({{"CounterID", "int32"}, {"URL", "string"}, {"l", "int64"}});
+    Scheme result_scheme = MakeScheme({{"CounterID", "int32"},
+                                       {"result_avg", "int128"},
+                                       {"result_count", "int64"}});
     std::vector<std::unique_ptr<Operation>> operations;
     operations.emplace_back(std::make_unique<Filter>(
         MakeFilter({MakeStringNotEqualFilter(url, "")})));
     operations.emplace_back(std::make_unique<Expression>(
         MakeExpression({MakeLengthExpression(url, "l")})));
-    operations.emplace_back(std::make_unique<GroupBy>(MakeGroupBy(
-        MakeGroupByTask({counter_id},
-                        {MakeGroupAvg(url_len), MakeGroupCount()}),
-        expr_scheme)));
+    operations.emplace_back(std::make_unique<GroupBy>(
+        MakeGroupBy(MakeGroupByTask({counter_id},
+                                    {MakeGroupAvg(url_len), MakeGroupCount()}),
+                    expr_scheme)));
     operations.emplace_back(std::make_unique<Filter>(
         MakeFilter({MakeInt64GreaterFilter(2, 100000)})));
-    operations.emplace_back(std::make_unique<TopK>(MakeTopK(
-        {MakeDescendingSortKey(1)}, 25, result_scheme)));
+    operations.emplace_back(std::make_unique<TopK>(
+        MakeTopK({MakeDescendingSortKey(1)}, 25, result_scheme)));
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
                       "query28.csv");
     Execute(pipeline);
@@ -734,26 +731,26 @@ void Engine::Make29Querry() {
     const size_t referer = projection.Require(hits::HitsColumn::Referer);
     const size_t domain = 1;
     const size_t referer_len = 2;
-    Scheme expr_scheme = MakeScheme(
-        {{"Referer", "string"}, {"k", "string"}, {"l", "int64"}});
-    Scheme result_scheme =
-        MakeScheme({{"k", "string"}, {"result_avg", "int128"},
-                    {"result_count", "int64"}, {"result_min", "string"}});
+    Scheme expr_scheme =
+        MakeScheme({{"Referer", "string"}, {"k", "string"}, {"l", "int64"}});
+    Scheme result_scheme = MakeScheme({{"k", "string"},
+                                       {"result_avg", "int128"},
+                                       {"result_count", "int64"},
+                                       {"result_min", "string"}});
     std::vector<std::unique_ptr<Operation>> operations;
     operations.emplace_back(std::make_unique<Filter>(
         MakeFilter({MakeStringNotEqualFilter(referer, "")})));
-    operations.emplace_back(std::make_unique<Expression>(MakeExpression(
-        {MakeExtractDomainExpression(referer, "k"),
-         MakeLengthExpression(referer, "l")})));
+    operations.emplace_back(std::make_unique<Expression>(
+        MakeExpression({MakeExtractDomainExpression(referer, "k"),
+                        MakeLengthExpression(referer, "l")})));
     operations.emplace_back(std::make_unique<GroupBy>(MakeGroupBy(
-        MakeGroupByTask({domain},
-                        {MakeGroupAvg(referer_len), MakeGroupCount(),
-                         MakeGroupMin(referer)}),
+        MakeGroupByTask({domain}, {MakeGroupAvg(referer_len), MakeGroupCount(),
+                                   MakeGroupMin(referer)}),
         expr_scheme)));
     operations.emplace_back(std::make_unique<Filter>(
         MakeFilter({MakeInt64GreaterFilter(2, 100000)})));
-    operations.emplace_back(std::make_unique<TopK>(MakeTopK(
-        {MakeDescendingSortKey(1)}, 25, result_scheme)));
+    operations.emplace_back(std::make_unique<TopK>(
+        MakeTopK({MakeDescendingSortKey(1)}, 25, result_scheme)));
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
                       "query29.csv");
     Execute(pipeline);
@@ -761,8 +758,7 @@ void Engine::Make29Querry() {
 
 void Engine::Make30Querry() {
     ProjectionBuilder projection(reader_.GetScheme());
-    const size_t width =
-        projection.Require(hits::HitsColumn::ResolutionWidth);
+    const size_t width = projection.Require(hits::HitsColumn::ResolutionWidth);
     std::vector<ExpressionTask> result_expressions;
     result_expressions.reserve(89);
     for (int64_t i = 1; i <= 89; ++i) {
@@ -793,8 +789,7 @@ void Engine::Make31Querry() {
         projection.Require(hits::HitsColumn::SearchEngineID);
     const size_t client_ip = projection.Require(hits::HitsColumn::ClientIP);
     const size_t is_refresh = projection.Require(hits::HitsColumn::IsRefresh);
-    const size_t width =
-        projection.Require(hits::HitsColumn::ResolutionWidth);
+    const size_t width = projection.Require(hits::HitsColumn::ResolutionWidth);
     const size_t search_phrase =
         projection.Require(hits::HitsColumn::SearchPhrase);
     Scheme result_scheme = MakeScheme({{"SearchEngineID", "int16"},
@@ -805,13 +800,13 @@ void Engine::Make31Querry() {
     std::vector<std::unique_ptr<Operation>> operations;
     operations.emplace_back(std::make_unique<Filter>(
         MakeFilter({MakeStringNotEqualFilter(search_phrase, "")})));
-    operations.emplace_back(std::make_unique<GroupBy>(MakeGroupBy(
-        MakeGroupByTask({search_engine_id, client_ip},
-                        {MakeGroupCount(), MakeGroupSum(is_refresh),
-                         MakeGroupAvg(width)}),
-        projection.ReadScheme())));
-    operations.emplace_back(std::make_unique<TopK>(MakeTopK(
-        {MakeDescendingSortKey(2)}, 10, result_scheme)));
+    operations.emplace_back(std::make_unique<GroupBy>(
+        MakeGroupBy(MakeGroupByTask({search_engine_id, client_ip},
+                                    {MakeGroupCount(), MakeGroupSum(is_refresh),
+                                     MakeGroupAvg(width)}),
+                    projection.ReadScheme())));
+    operations.emplace_back(std::make_unique<TopK>(
+        MakeTopK({MakeDescendingSortKey(2)}, 10, result_scheme)));
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
                       "query31.csv");
     Execute(pipeline);
@@ -822,8 +817,7 @@ void Engine::Make32Querry() {
     const size_t watch_id = projection.Require(hits::HitsColumn::WatchID);
     const size_t client_ip = projection.Require(hits::HitsColumn::ClientIP);
     const size_t is_refresh = projection.Require(hits::HitsColumn::IsRefresh);
-    const size_t width =
-        projection.Require(hits::HitsColumn::ResolutionWidth);
+    const size_t width = projection.Require(hits::HitsColumn::ResolutionWidth);
     const size_t search_phrase =
         projection.Require(hits::HitsColumn::SearchPhrase);
     Scheme result_scheme = MakeScheme({{"WatchID", "int64"},
@@ -834,13 +828,13 @@ void Engine::Make32Querry() {
     std::vector<std::unique_ptr<Operation>> operations;
     operations.emplace_back(std::make_unique<Filter>(
         MakeFilter({MakeStringNotEqualFilter(search_phrase, "")})));
-    operations.emplace_back(std::make_unique<GroupBy>(MakeGroupBy(
-        MakeGroupByTask({watch_id, client_ip},
-                        {MakeGroupCount(), MakeGroupSum(is_refresh),
-                         MakeGroupAvg(width)}),
-        projection.ReadScheme())));
-    operations.emplace_back(std::make_unique<TopK>(MakeTopK(
-        {MakeDescendingSortKey(2)}, 10, result_scheme)));
+    operations.emplace_back(std::make_unique<GroupBy>(
+        MakeGroupBy(MakeGroupByTask({watch_id, client_ip},
+                                    {MakeGroupCount(), MakeGroupSum(is_refresh),
+                                     MakeGroupAvg(width)}),
+                    projection.ReadScheme())));
+    operations.emplace_back(std::make_unique<TopK>(
+        MakeTopK({MakeDescendingSortKey(2)}, 10, result_scheme)));
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
                       "query32.csv");
     Execute(pipeline);
@@ -851,21 +845,20 @@ void Engine::Make33Querry() {
     const size_t watch_id = projection.Require(hits::HitsColumn::WatchID);
     const size_t client_ip = projection.Require(hits::HitsColumn::ClientIP);
     const size_t is_refresh = projection.Require(hits::HitsColumn::IsRefresh);
-    const size_t width =
-        projection.Require(hits::HitsColumn::ResolutionWidth);
+    const size_t width = projection.Require(hits::HitsColumn::ResolutionWidth);
     Scheme result_scheme = MakeScheme({{"WatchID", "int64"},
                                        {"ClientIP", "int32"},
                                        {"result_count", "int64"},
                                        {"result_sum", "int128"},
                                        {"result_avg", "int128"}});
     std::vector<std::unique_ptr<Operation>> operations;
-    operations.emplace_back(std::make_unique<GroupBy>(MakeGroupBy(
-        MakeGroupByTask({watch_id, client_ip},
-                        {MakeGroupCount(), MakeGroupSum(is_refresh),
-                         MakeGroupAvg(width)}),
-        projection.ReadScheme())));
-    operations.emplace_back(std::make_unique<TopK>(MakeTopK(
-        {MakeDescendingSortKey(2)}, 10, result_scheme)));
+    operations.emplace_back(std::make_unique<GroupBy>(
+        MakeGroupBy(MakeGroupByTask({watch_id, client_ip},
+                                    {MakeGroupCount(), MakeGroupSum(is_refresh),
+                                     MakeGroupAvg(width)}),
+                    projection.ReadScheme())));
+    operations.emplace_back(std::make_unique<TopK>(
+        MakeTopK({MakeDescendingSortKey(2)}, 10, result_scheme)));
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
                       "query33.csv");
     Execute(pipeline);
@@ -877,11 +870,10 @@ void Engine::Make34Querry() {
     Scheme result_scheme =
         MakeScheme({{"URL", "string"}, {"result_count", "int64"}});
     std::vector<std::unique_ptr<Operation>> operations;
-    operations.emplace_back(std::make_unique<GroupBy>(
-        MakeGroupBy(MakeGroupByTask({url}, {MakeGroupCount()}),
-                    projection.ReadScheme())));
-    operations.emplace_back(std::make_unique<TopK>(MakeTopK(
-        {MakeDescendingSortKey(1)}, 10, result_scheme)));
+    operations.emplace_back(std::make_unique<GroupBy>(MakeGroupBy(
+        MakeGroupByTask({url}, {MakeGroupCount()}), projection.ReadScheme())));
+    operations.emplace_back(std::make_unique<TopK>(
+        MakeTopK({MakeDescendingSortKey(1)}, 10, result_scheme)));
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
                       "query34.csv");
     Execute(pipeline);
@@ -899,8 +891,8 @@ void Engine::Make35Querry() {
         MakeExpression({MakeConstantInt64Expression(1, "one")})));
     operations.emplace_back(std::make_unique<GroupBy>(MakeGroupBy(
         MakeGroupByTask({one, url}, {MakeGroupCount()}), expr_scheme)));
-    operations.emplace_back(std::make_unique<TopK>(MakeTopK(
-        {MakeDescendingSortKey(2)}, 10, result_scheme)));
+    operations.emplace_back(std::make_unique<TopK>(
+        MakeTopK({MakeDescendingSortKey(2)}, 10, result_scheme)));
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
                       "query35.csv");
     Execute(pipeline);
@@ -923,11 +915,11 @@ void Engine::Make36Querry() {
         {MakeSubInt64ConstantExpression(client_ip, 1, "ip_1"),
          MakeSubInt64ConstantExpression(client_ip, 2, "ip_2"),
          MakeSubInt64ConstantExpression(client_ip, 3, "ip_3")})));
-    operations.emplace_back(std::make_unique<GroupBy>(MakeGroupBy(
-        MakeGroupByTask({client_ip, 1, 2, 3}, {MakeGroupCount()}),
-        expr_scheme)));
-    operations.emplace_back(std::make_unique<TopK>(MakeTopK(
-        {MakeDescendingSortKey(4)}, 10, result_scheme)));
+    operations.emplace_back(std::make_unique<GroupBy>(
+        MakeGroupBy(MakeGroupByTask({client_ip, 1, 2, 3}, {MakeGroupCount()}),
+                    expr_scheme)));
+    operations.emplace_back(std::make_unique<TopK>(
+        MakeTopK({MakeDescendingSortKey(4)}, 10, result_scheme)));
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
                       "query36.csv");
     Execute(pipeline);
@@ -944,17 +936,16 @@ void Engine::Make37Querry() {
     Scheme result_scheme =
         MakeScheme({{"URL", "string"}, {"result_count", "int64"}});
     std::vector<std::unique_ptr<Operation>> operations;
-    operations.emplace_back(std::make_unique<Filter>(MakeFilter(
-        {MakeInt64EqualFilter(counter_id, 62),
-         MakeDateRangeFilter(event_date, "2013-07-01", "2013-07-31"),
-         MakeInt64EqualFilter(dont_count, 0),
-         MakeInt64EqualFilter(is_refresh, 0),
-         MakeStringNotEqualFilter(url, "")})));
-    operations.emplace_back(std::make_unique<GroupBy>(
-        MakeGroupBy(MakeGroupByTask({url}, {MakeGroupCount()}),
-                    projection.ReadScheme())));
-    operations.emplace_back(std::make_unique<TopK>(MakeTopK(
-        {MakeDescendingSortKey(1)}, 10, result_scheme)));
+    operations.emplace_back(std::make_unique<Filter>(
+        MakeFilter({MakeInt64EqualFilter(counter_id, 62),
+                    MakeDateRangeFilter(event_date, "2013-07-01", "2013-07-31"),
+                    MakeInt64EqualFilter(dont_count, 0),
+                    MakeInt64EqualFilter(is_refresh, 0),
+                    MakeStringNotEqualFilter(url, "")})));
+    operations.emplace_back(std::make_unique<GroupBy>(MakeGroupBy(
+        MakeGroupByTask({url}, {MakeGroupCount()}), projection.ReadScheme())));
+    operations.emplace_back(std::make_unique<TopK>(
+        MakeTopK({MakeDescendingSortKey(1)}, 10, result_scheme)));
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
                       "query37.csv");
     Execute(pipeline);
@@ -971,17 +962,17 @@ void Engine::Make38Querry() {
     Scheme result_scheme =
         MakeScheme({{"Title", "string"}, {"result_count", "int64"}});
     std::vector<std::unique_ptr<Operation>> operations;
-    operations.emplace_back(std::make_unique<Filter>(MakeFilter(
-        {MakeInt64EqualFilter(counter_id, 62),
-         MakeDateRangeFilter(event_date, "2013-07-01", "2013-07-31"),
-         MakeInt64EqualFilter(dont_count, 0),
-         MakeInt64EqualFilter(is_refresh, 0),
-         MakeStringNotEqualFilter(title, "")})));
+    operations.emplace_back(std::make_unique<Filter>(
+        MakeFilter({MakeInt64EqualFilter(counter_id, 62),
+                    MakeDateRangeFilter(event_date, "2013-07-01", "2013-07-31"),
+                    MakeInt64EqualFilter(dont_count, 0),
+                    MakeInt64EqualFilter(is_refresh, 0),
+                    MakeStringNotEqualFilter(title, "")})));
     operations.emplace_back(std::make_unique<GroupBy>(
         MakeGroupBy(MakeGroupByTask({title}, {MakeGroupCount()}),
                     projection.ReadScheme())));
-    operations.emplace_back(std::make_unique<TopK>(MakeTopK(
-        {MakeDescendingSortKey(1)}, 10, result_scheme)));
+    operations.emplace_back(std::make_unique<TopK>(
+        MakeTopK({MakeDescendingSortKey(1)}, 10, result_scheme)));
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
                       "query38.csv");
     Execute(pipeline);
@@ -998,17 +989,16 @@ void Engine::Make39Querry() {
     Scheme result_scheme =
         MakeScheme({{"URL", "string"}, {"result_count", "int64"}});
     std::vector<std::unique_ptr<Operation>> operations;
-    operations.emplace_back(std::make_unique<Filter>(MakeFilter(
-        {MakeInt64EqualFilter(counter_id, 62),
-         MakeDateRangeFilter(event_date, "2013-07-01", "2013-07-31"),
-         MakeInt64EqualFilter(is_refresh, 0),
-         MakeInt64NotEqualFilter(is_link, 0),
-         MakeInt64EqualFilter(is_download, 0)})));
-    operations.emplace_back(std::make_unique<GroupBy>(
-        MakeGroupBy(MakeGroupByTask({url}, {MakeGroupCount()}),
-                    projection.ReadScheme())));
-    operations.emplace_back(std::make_unique<TopK>(MakeTopK(
-        {MakeDescendingSortKey(1)}, 1010, result_scheme)));
+    operations.emplace_back(std::make_unique<Filter>(
+        MakeFilter({MakeInt64EqualFilter(counter_id, 62),
+                    MakeDateRangeFilter(event_date, "2013-07-01", "2013-07-31"),
+                    MakeInt64EqualFilter(is_refresh, 0),
+                    MakeInt64NotEqualFilter(is_link, 0),
+                    MakeInt64EqualFilter(is_download, 0)})));
+    operations.emplace_back(std::make_unique<GroupBy>(MakeGroupBy(
+        MakeGroupByTask({url}, {MakeGroupCount()}), projection.ReadScheme())));
+    operations.emplace_back(std::make_unique<TopK>(
+        MakeTopK({MakeDescendingSortKey(1)}, 1010, result_scheme)));
     operations.emplace_back(std::make_unique<Offset>(MakeOffset(1000)));
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
                       "query39.csv");
@@ -1046,10 +1036,10 @@ void Engine::Make40Querry() {
                                        {"Dst", "string"},
                                        {"result_count", "int64"}});
     std::vector<std::unique_ptr<Operation>> operations;
-    operations.emplace_back(std::make_unique<Filter>(MakeFilter(
-        {MakeInt64EqualFilter(counter_id, 62),
-         MakeDateRangeFilter(event_date, "2013-07-01", "2013-07-31"),
-         MakeInt64EqualFilter(is_refresh, 0)})));
+    operations.emplace_back(std::make_unique<Filter>(
+        MakeFilter({MakeInt64EqualFilter(counter_id, 62),
+                    MakeDateRangeFilter(event_date, "2013-07-01", "2013-07-31"),
+                    MakeInt64EqualFilter(is_refresh, 0)})));
     operations.emplace_back(std::make_unique<Expression>(MakeExpression(
         {MakeCaseWhenBothZeroThenStringElseEmptyExpression(
              search_engine, adv_engine, referer, "Src"),
@@ -1058,8 +1048,8 @@ void Engine::Make40Querry() {
         MakeGroupByTask({trafic_source, search_engine, adv_engine, src, dst},
                         {MakeGroupCount()}),
         expr_scheme)));
-    operations.emplace_back(std::make_unique<TopK>(MakeTopK(
-        {MakeDescendingSortKey(5)}, 1010, result_scheme)));
+    operations.emplace_back(std::make_unique<TopK>(
+        MakeTopK({MakeDescendingSortKey(5)}, 1010, result_scheme)));
     operations.emplace_back(std::make_unique<Offset>(MakeOffset(1000)));
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
                       "query40.csv");
@@ -1086,11 +1076,11 @@ void Engine::Make41Querry() {
          MakeInt64EqualFilter(is_refresh, 0),
          MakeInt64InFilter(trafic_source, {-1, 6}),
          MakeInt64EqualFilter(referer_hash, 3594120000172545465LL)})));
-    operations.emplace_back(std::make_unique<GroupBy>(MakeGroupBy(
-        MakeGroupByTask({url_hash, event_date}, {MakeGroupCount()}),
-        projection.ReadScheme())));
-    operations.emplace_back(std::make_unique<TopK>(MakeTopK(
-        {MakeDescendingSortKey(2)}, 110, result_scheme)));
+    operations.emplace_back(std::make_unique<GroupBy>(
+        MakeGroupBy(MakeGroupByTask({url_hash, event_date}, {MakeGroupCount()}),
+                    projection.ReadScheme())));
+    operations.emplace_back(std::make_unique<TopK>(
+        MakeTopK({MakeDescendingSortKey(2)}, 110, result_scheme)));
     operations.emplace_back(std::make_unique<Offset>(MakeOffset(100)));
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
                       "query41.csv");
@@ -1113,17 +1103,17 @@ void Engine::Make42Querry() {
                                        {"WindowClientHeight", "int16"},
                                        {"result_count", "int64"}});
     std::vector<std::unique_ptr<Operation>> operations;
-    operations.emplace_back(std::make_unique<Filter>(MakeFilter(
-        {MakeInt64EqualFilter(counter_id, 62),
-         MakeDateRangeFilter(event_date, "2013-07-01", "2013-07-31"),
-         MakeInt64EqualFilter(is_refresh, 0),
-         MakeInt64EqualFilter(dont_count, 0),
-         MakeInt64EqualFilter(url_hash, 2868770270353813622LL)})));
+    operations.emplace_back(std::make_unique<Filter>(
+        MakeFilter({MakeInt64EqualFilter(counter_id, 62),
+                    MakeDateRangeFilter(event_date, "2013-07-01", "2013-07-31"),
+                    MakeInt64EqualFilter(is_refresh, 0),
+                    MakeInt64EqualFilter(dont_count, 0),
+                    MakeInt64EqualFilter(url_hash, 2868770270353813622LL)})));
     operations.emplace_back(std::make_unique<GroupBy>(MakeGroupBy(
         MakeGroupByTask({window_width, window_height}, {MakeGroupCount()}),
         projection.ReadScheme())));
-    operations.emplace_back(std::make_unique<TopK>(MakeTopK(
-        {MakeDescendingSortKey(2)}, 10010, result_scheme)));
+    operations.emplace_back(std::make_unique<TopK>(
+        MakeTopK({MakeDescendingSortKey(2)}, 10010, result_scheme)));
     operations.emplace_back(std::make_unique<Offset>(MakeOffset(10000)));
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
                       "query42.csv");
@@ -1148,17 +1138,17 @@ void Engine::Make43Querry() {
     Scheme result_scheme =
         MakeScheme({{"M", "timestamp"}, {"result_count", "int64"}});
     std::vector<std::unique_ptr<Operation>> operations;
-    operations.emplace_back(std::make_unique<Filter>(MakeFilter(
-        {MakeInt64EqualFilter(counter_id, 62),
-         MakeDateRangeFilter(event_date, "2013-07-14", "2013-07-15"),
-         MakeInt64EqualFilter(is_refresh, 0),
-         MakeInt64EqualFilter(dont_count, 0)})));
+    operations.emplace_back(std::make_unique<Filter>(
+        MakeFilter({MakeInt64EqualFilter(counter_id, 62),
+                    MakeDateRangeFilter(event_date, "2013-07-14", "2013-07-15"),
+                    MakeInt64EqualFilter(is_refresh, 0),
+                    MakeInt64EqualFilter(dont_count, 0)})));
     operations.emplace_back(std::make_unique<Expression>(
         MakeExpression({MakeDateTruncMinuteExpression(event_time, "M")})));
     operations.emplace_back(std::make_unique<GroupBy>(MakeGroupBy(
         MakeGroupByTask({minute}, {MakeGroupCount()}), expr_scheme)));
-    operations.emplace_back(std::make_unique<TopK>(MakeTopK(
-        {MakeAscendingSortKey(0)}, 1010, result_scheme)));
+    operations.emplace_back(std::make_unique<TopK>(
+        MakeTopK({MakeAscendingSortKey(0)}, 1010, result_scheme)));
     operations.emplace_back(std::make_unique<Offset>(MakeOffset(1000)));
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
                       "query43.csv");

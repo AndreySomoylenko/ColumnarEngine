@@ -1,4 +1,4 @@
-#include "Batch.h"
+#include "data_structures/Batch.h"
 #include "data_structures/Column.h"
 #include <memory>
 #include <stdexcept>
@@ -146,8 +146,7 @@ void Batch::SetEnabledRaws(
     enabled_ = std::move(enabled);
 }
 
-const std::optional<std::unordered_set<size_t>> &
-Batch::GetEnabledRaws() const {
+const std::optional<std::unordered_set<size_t>> &Batch::GetEnabledRaws() const {
     return enabled_;
 }
 

@@ -1,9 +1,9 @@
 add_library(columnar_io
-    CSVReader.cpp
-    CSVWriter.cpp
+    CsvReader.cpp
+    CsvWriter.cpp
     ColumnarReader.cpp
     ColumnarWriter.cpp
-    IOScanner.cpp
+    IoScanner.cpp
     VectorScanner.cpp
 )
 

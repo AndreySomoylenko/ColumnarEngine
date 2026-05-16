@@ -20,17 +20,16 @@ TEST(ProjectionBuilderTest, BuildsReadSchemeAndReturnsLocalIndexes) {
     EXPECT_EQ(url_again, url);
     EXPECT_EQ(projection.ReadScheme().GetSchemeNames(),
               (std::vector<std::string>{"URL", "SearchPhrase"}));
-    EXPECT_EQ(projection.ReadScheme().GetSchemeTypes(),
-              (std::vector<ColumnTypes>{ColumnTypes::String,
-                                        ColumnTypes::String}));
+    EXPECT_EQ(
+        projection.ReadScheme().GetSchemeTypes(),
+        (std::vector<ColumnTypes>{ColumnTypes::String, ColumnTypes::String}));
 }
 
 TEST(ProjectionBuilderTest, PreservesSourceColumnTypes) {
     Scheme source;
     for (size_t i = 0; i < hits::kHitsColumnCount; ++i) {
         const std::string type =
-            i == hits::Col(hits::HitsColumn::AdvEngineID) ? "int16"
-                                                          : "string";
+            i == hits::Col(hits::HitsColumn::AdvEngineID) ? "int16" : "string";
         source.Add({std::string(hits::HitsColumnNames[i]), type});
     }
 

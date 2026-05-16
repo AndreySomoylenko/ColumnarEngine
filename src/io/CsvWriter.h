@@ -6,14 +6,14 @@
 
 using Row = std::vector<std::string>;
 
-class CSVWriter {
+class CsvWriter {
   public:
-    CSVWriter(const std::string &filename, char sep = ',');
+    CsvWriter(const std::string &filename, char sep = ',');
 
     void WriteRow(const Row &row);
     void Flush();
 
-    ~CSVWriter();
+    ~CsvWriter();
 
   private:
     std::ofstream os_;

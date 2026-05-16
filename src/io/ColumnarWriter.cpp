@@ -1,4 +1,4 @@
-#include "ColumnarWriter.h"
+#include "io/ColumnarWriter.h"
 #include "data_structures/Column.h"
 #include <cstddef>
 #include <ios>
@@ -48,7 +48,7 @@ void ColumnarWriter::WriteChunk(const Batch &batch) {
     }
 }
 
-void ColumnarWriter::Close(const Scheme &scheme) {
+void ColumnarWriter::Close(const Scheme &scheme) && {
     auto meta_start = os_.tellp();
     size_t chunk_count = chunk_starts.size();
 

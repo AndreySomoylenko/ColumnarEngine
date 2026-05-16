@@ -1,9 +1,9 @@
-#include "CSVWriter.h"
+#include "io/CsvWriter.h"
 #include "utils/StringConverter.h"
 #include <fstream>
 #include <stdexcept>
 
-CSVWriter::CSVWriter(const std::string &filename, char sep) : sep_(sep) {
+CsvWriter::CsvWriter(const std::string &filename, char sep) : sep_(sep) {
     os_.open(filename, std::ios::binary | std::ios::out);
 
     if (!os_.good()) {
@@ -11,7 +11,7 @@ CSVWriter::CSVWriter(const std::string &filename, char sep) : sep_(sep) {
     }
 }
 
-void CSVWriter::WriteRow(const Row &row) {
+void CsvWriter::WriteRow(const Row &row) {
     StringConverter converter;
 
     for (size_t i = 0; i < row.size(); ++i) {
@@ -27,6 +27,6 @@ void CSVWriter::WriteRow(const Row &row) {
     os_.write(&n, 1);
 }
 
-void CSVWriter::Flush() { os_.flush(); }
+void CsvWriter::Flush() { os_.flush(); }
 
-CSVWriter::~CSVWriter() { os_.close(); }
+CsvWriter::~CsvWriter() { os_.close(); }

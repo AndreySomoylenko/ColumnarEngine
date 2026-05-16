@@ -4,10 +4,10 @@
 #include "io/BatchScanner.h"
 #include "io/ColumnarReader.h"
 
-class IOScanner : public BatchScanner {
+class IoScanner : public BatchScanner {
   public:
-    IOScanner(const Scheme &scheme, ColumnarReader &reader);
-    IOScanner(Scheme &&scheme, ColumnarReader &reader);
+    IoScanner(const Scheme &scheme, ColumnarReader &reader);
+    IoScanner(Scheme &&scheme, ColumnarReader &reader);
     Batch ReadNext() override;
     bool IsEnd() const override;
 

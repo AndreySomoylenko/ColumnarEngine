@@ -54,8 +54,10 @@ TEST(SchemeTest, RemovesColumnAndRebuildsIndexes) {
 
     scheme.RemoveColumn(1);
 
-    EXPECT_EQ(scheme.GetSchemeNames(), (std::vector<std::string>{"id", "score"}));
-    EXPECT_EQ(scheme.GetSchemeTypes(), (std::vector<ColumnTypes>{Int64, Double}));
+    EXPECT_EQ(scheme.GetSchemeNames(),
+              (std::vector<std::string>{"id", "score"}));
+    EXPECT_EQ(scheme.GetSchemeTypes(),
+              (std::vector<ColumnTypes>{Int64, Double}));
     EXPECT_EQ(scheme.GetColumnIndexByName("score"), 1U);
     EXPECT_EQ(scheme.GetColumnTypeByName("score"), Double);
     EXPECT_THROW(scheme.GetColumnIndexByName("name"), std::invalid_argument);
@@ -215,9 +217,9 @@ TEST(BatchTest, CanAppendReadyColumnAndExtendScheme) {
     batch.AddRow({"2"});
 
     int64_t value = 7;
-    auto constant = std::make_shared<Int64Column>(
-        reinterpret_cast<const char *>(&value), sizeof(value),
-        batch.VerticalSize());
+    auto constant =
+        std::make_shared<Int64Column>(reinterpret_cast<const char *>(&value),
+                                      sizeof(value), batch.VerticalSize());
 
     batch.AddColumn(constant, ColumnTypes::Int64, "constant");
 

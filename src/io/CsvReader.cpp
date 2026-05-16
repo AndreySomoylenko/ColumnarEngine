@@ -1,10 +1,10 @@
-#include "CSVReader.h"
+#include "io/CsvReader.h"
 
 #include <fstream>
 #include <stdexcept>
 #include <string>
 
-CSVReader::CSVReader(const std::string &filename, char sep) : sep_(sep) {
+CsvReader::CsvReader(const std::string &filename, char sep) : sep_(sep) {
     is_.open(filename, std::ios::binary);
 
     if (!is_) {
@@ -15,7 +15,7 @@ CSVReader::CSVReader(const std::string &filename, char sep) : sep_(sep) {
     cur_string_.reserve(1 << 16);
 }
 
-void CSVReader::ReadNext(Row &result) {
+void CsvReader::ReadNext(Row &result) {
     result.clear();
 
     if (!std::getline(is_, tmp_)) {
@@ -86,6 +86,6 @@ void CSVReader::ReadNext(Row &result) {
     cur_string_.clear();
 }
 
-bool CSVReader::IsEnd() { return !is_ || is_.peek() == EOF; }
+bool CsvReader::IsEnd() { return !is_ || is_.peek() == EOF; }
 
-CSVReader::~CSVReader() { is_.close(); }
+CsvReader::~CsvReader() { is_.close(); }

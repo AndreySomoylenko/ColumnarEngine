@@ -1,13 +1,13 @@
-#include "IOScanner.h"
+#include "io/IoScanner.h"
 #include "data_structures/Batch.h"
 
-IOScanner::IOScanner(const Scheme &scheme, ColumnarReader &reader)
+IoScanner::IoScanner(const Scheme &scheme, ColumnarReader &reader)
     : scheme_(scheme), reader_(reader) {}
 
-IOScanner::IOScanner(Scheme &&scheme, ColumnarReader &reader)
+IoScanner::IoScanner(Scheme &&scheme, ColumnarReader &reader)
     : scheme_(std::move(scheme)), reader_(reader) {}
 
-Batch IOScanner::ReadNext() {
+Batch IoScanner::ReadNext() {
     if (IsEnd()) {
         throw std::out_of_range("No more data to read");
     }
@@ -15,4 +15,4 @@ Batch IOScanner::ReadNext() {
     return reader_.ReadNext(scheme_, cur_index_);
 }
 
-bool IOScanner::IsEnd() const { return reader_.IsEnd(cur_index_); }
+bool IoScanner::IsEnd() const { return reader_.IsEnd(cur_index_); }

@@ -6,14 +6,14 @@
 
 using Row = std::vector<std::string>;
 
-class CSVReader {
+class CsvReader {
   public:
-    CSVReader(const std::string &filename, char sep = ',');
+    CsvReader(const std::string &filename, char sep = ',');
 
     void ReadNext(Row &row);
     bool IsEnd();
 
-    ~CSVReader();
+    ~CsvReader();
 
   private:
     std::ifstream is_;
@@ -22,5 +22,4 @@ class CSVReader {
     std::string cur_string_;
 
     std::string tmp_;
-
 };

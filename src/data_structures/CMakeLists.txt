@@ -3,7 +3,7 @@ ByteVector.cpp
 Column.cpp
 Batch.cpp
 Scheme.cpp
-Metadata.cpp
+MetaData.cpp
 )
 
 target_include_directories(columnar_data_structures

@@ -10,7 +10,7 @@
 #include "data_structures/Scheme.h"
 #include "io/ColumnarReader.h"
 #include "io/ColumnarWriter.h"
-#include "io/IOScanner.h"
+#include "io/IoScanner.h"
 
 namespace {
 
@@ -76,7 +76,7 @@ TEST_F(ColumnarIoTest, WritesAndReadsMultipleChunksWithScheme) {
         ColumnarWriter writer(Path("data.hub").string());
         writer.WriteChunk(first);
         writer.WriteChunk(second);
-        writer.Close(scheme);
+        std::move(writer).Close(scheme);
     }
 
     ColumnarReader reader(Path("data.hub").string());
@@ -86,7 +86,7 @@ TEST_F(ColumnarIoTest, WritesAndReadsMultipleChunksWithScheme) {
                                 {"name", "string"},
                                 {"payload", "unknown"}}));
     Scheme columns = AllColumns(reader.GetScheme());
-    IOScanner scanner(columns, reader);
+    IoScanner scanner(columns, reader);
     EXPECT_FALSE(scanner.IsEnd());
 
     Batch read_first = scanner.ReadNext();
@@ -118,12 +118,12 @@ TEST_F(ColumnarIoTest, SupportsStringOnlySchemas) {
     {
         ColumnarWriter writer(Path("strings.hub").string());
         writer.WriteChunk(batch);
-        writer.Close(scheme);
+        std::move(writer).Close(scheme);
     }
 
     ColumnarReader reader(Path("strings.hub").string());
     Scheme columns = AllColumns(reader.GetScheme());
-    IOScanner scanner(columns, reader);
+    IoScanner scanner(columns, reader);
     Batch read = scanner.ReadNext();
 
     EXPECT_EQ(read.VerticalSize(), 2U);
@@ -141,12 +141,12 @@ TEST_F(ColumnarIoTest, ScannerReadsSelectedColumnsOnly) {
     {
         ColumnarWriter writer(Path("projected.hub").string());
         writer.WriteChunk(batch);
-        writer.Close(scheme);
+        std::move(writer).Close(scheme);
     }
 
     ColumnarReader reader(Path("projected.hub").string());
     Scheme columns = Project(reader.GetScheme(), {1, 2});
-    IOScanner scanner(columns, reader);
+    IoScanner scanner(columns, reader);
 
     Batch read = scanner.ReadNext();
 
@@ -171,7 +171,7 @@ TEST_F(ColumnarIoTest, ReadsAndWritesTimestampColumns) {
     {
         ColumnarWriter writer(Path("timestamps.hub").string());
         writer.WriteChunk(batch);
-        writer.Close(scheme);
+        std::move(writer).Close(scheme);
     }
 
     ColumnarReader reader(Path("timestamps.hub").string());
@@ -182,7 +182,7 @@ TEST_F(ColumnarIoTest, ReadsAndWritesTimestampColumns) {
                                 {"name", "string"}}));
 
     Scheme all_columns = AllColumns(reader.GetScheme());
-    IOScanner all_scanner(all_columns, reader);
+    IoScanner all_scanner(all_columns, reader);
     Batch all_read = all_scanner.ReadNext();
 
     EXPECT_EQ(all_read.GetRow(0),
@@ -191,7 +191,7 @@ TEST_F(ColumnarIoTest, ReadsAndWritesTimestampColumns) {
               (Row{"2", "1971-01-01 14:16:06", "1971-01-01", "Bob"}));
 
     Scheme timestamp_column = Project(reader.GetScheme(), {1});
-    IOScanner timestamp_scanner(timestamp_column, reader);
+    IoScanner timestamp_scanner(timestamp_column, reader);
     Batch timestamp_read = timestamp_scanner.ReadNext();
 
     EXPECT_EQ(timestamp_read.HorizontalSize(), 1U);
@@ -199,7 +199,7 @@ TEST_F(ColumnarIoTest, ReadsAndWritesTimestampColumns) {
     EXPECT_EQ(timestamp_read.GetRow(1), (Row{"1971-01-01 14:16:06"}));
 
     Scheme date_column = Project(reader.GetScheme(), {2});
-    IOScanner date_scanner(date_column, reader);
+    IoScanner date_scanner(date_column, reader);
     Batch date_read = date_scanner.ReadNext();
 
     EXPECT_EQ(date_read.HorizontalSize(), 1U);

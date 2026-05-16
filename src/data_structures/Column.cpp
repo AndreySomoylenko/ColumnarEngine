@@ -1,4 +1,4 @@
-#include "Column.h"
+#include "data_structures/Column.h"
 #include <algorithm>
 #include <cctype>
 #include <chrono>
@@ -220,9 +220,7 @@ bool Column::operator==(const Column &other) const {
     return true;
 }
 
-bool Column::operator!=(const Column &other) const {
-    return !(*this == other);
-}
+bool Column::operator!=(const Column &other) const { return !(*this == other); }
 
 bool Column::operator>(const Column &other) const { return other < *this; }
 
@@ -269,7 +267,7 @@ void TimeColumn::Push(const char *data, size_t sz) {
     data_.Push(data, sz);
 }
 
-std::string Int64Column::ToString(const size_t index) {
+std::string Int64Column::ToString(const size_t index) const {
     if (index >= Size()) {
         throw std::invalid_argument("Too big index");
     }
@@ -278,7 +276,7 @@ std::string Int64Column::ToString(const size_t index) {
         *reinterpret_cast<const int64_t *>(data_.Data() + index * ElemSize));
 };
 
-std::string StringColumn::ToString(const size_t index) {
+std::string StringColumn::ToString(const size_t index) const {
     if (index >= Size()) {
         throw std::invalid_argument("Too big index");
     }
@@ -289,7 +287,7 @@ std::string StringColumn::ToString(const size_t index) {
     return std::string(data_.Data() + start, end - start);
 }
 
-std::string TimeColumn::ToString(const size_t index) {
+std::string TimeColumn::ToString(const size_t index) const {
     if (index >= Size()) {
         throw std::invalid_argument("Too big index");
     }
@@ -307,15 +305,15 @@ void StringColumn::Clear() {
 }
 void TimeColumn::Clear() { data_.Clear(); }
 
-std::pair<const char *, size_t> Int64Column::ToWrite() {
+std::pair<const char *, size_t> Int64Column::ToWrite() const {
     return {data_.Data(), data_.SizeInBytes()};
 }
 
-std::pair<const char *, size_t> StringColumn::ToWrite() {
+std::pair<const char *, size_t> StringColumn::ToWrite() const {
     return {data_.Data(), data_.SizeInBytes()};
 }
 
-std::pair<const char *, size_t> TimeColumn::ToWrite() {
+std::pair<const char *, size_t> TimeColumn::ToWrite() const {
     return {data_.Data(), data_.SizeInBytes()};
 }
 
@@ -418,7 +416,7 @@ void Int128Column::Push(const std::string &s) {
     data_.Push(&result, ElemSize);
 }
 
-std::pair<const char *, size_t> Int128Column::ToWrite() {
+std::pair<const char *, size_t> Int128Column::ToWrite() const {
     return {data_.Data(), data_.SizeInBytes()};
 }
 
@@ -429,7 +427,7 @@ void Int128Column::Push(const char *data, size_t sz) {
     data_.Push(data, sz);
 }
 
-std::string Int128Column::ToString(const size_t index) {
+std::string Int128Column::ToString(const size_t index) const {
     if (index >= Size()) {
         throw std::invalid_argument("Too big index");
     }
@@ -486,7 +484,7 @@ void DoubleColumn::Push(const char *data, size_t sz) {
     data_.Push(data, sz);
 }
 
-std::string DoubleColumn::ToString(const size_t index) {
+std::string DoubleColumn::ToString(const size_t index) const {
     if (index >= Size()) {
         throw std::invalid_argument("Too big index");
     }
@@ -504,7 +502,7 @@ ColumnValueView DoubleColumn::Get(size_t index) const {
     return {data_.Data() + index * ElemSize, ElemSize};
 }
 
-std::pair<const char *, size_t> DoubleColumn::ToWrite() {
+std::pair<const char *, size_t> DoubleColumn::ToWrite() const {
     return {data_.Data(), data_.SizeInBytes()};
 }
 
@@ -557,7 +555,7 @@ void Int32Column::Push(const char *data, size_t sz) {
     data_.Push(data, sz);
 }
 
-std::string Int16Column::ToString(const size_t index) {
+std::string Int16Column::ToString(const size_t index) const {
     if (index >= Size()) {
         throw std::invalid_argument("Too big index");
     }
@@ -566,7 +564,7 @@ std::string Int16Column::ToString(const size_t index) {
     return std::to_string(*data);
 }
 
-std::string Int32Column::ToString(const size_t index) {
+std::string Int32Column::ToString(const size_t index) const {
     if (index >= Size()) {
         throw std::invalid_argument("Too big index");
     }
@@ -592,10 +590,10 @@ ColumnValueView Int32Column::Get(size_t index) const {
     return {data_.Data() + index * ElemSize, ElemSize};
 }
 
-std::pair<const char *, size_t> Int16Column::ToWrite() {
+std::pair<const char *, size_t> Int16Column::ToWrite() const {
     return {data_.Data(), data_.SizeInBytes()};
 }
 
-std::pair<const char *, size_t> Int32Column::ToWrite() {
+std::pair<const char *, size_t> Int32Column::ToWrite() const {
     return {data_.Data(), data_.SizeInBytes()};
 }

@@ -1,17 +1,17 @@
-#include <cstdlib>
-#include <chrono>
 #include <cctype>
+#include <chrono>
+#include <cstdlib>
 #include <filesystem>
-#include <numeric>
 #include <iostream>
+#include <numeric>
 #include <system_error>
 
 #include <gtest/gtest.h>
 
 #include "core/Engine.h"
-#include "io/CSVReader.h"
 #include "io/ColumnarReader.h"
-#include "io/IOScanner.h"
+#include "io/CsvReader.h"
+#include "io/IoScanner.h"
 
 namespace {
 
@@ -28,14 +28,14 @@ std::filesystem::path EnvPathOrDefault(const char *name, const char *fallback) {
 }
 
 Row ReadFirstRow(const std::filesystem::path &path) {
-    CSVReader reader(path.string());
+    CsvReader reader(path.string());
     Row row;
     reader.ReadNext(row);
     return row;
 }
 
 std::vector<Row> ReadRows(const std::filesystem::path &path) {
-    CSVReader reader(path.string());
+    CsvReader reader(path.string());
     std::vector<Row> rows;
     while (!reader.IsEnd()) {
         Row row;
@@ -55,7 +55,7 @@ std::vector<Row> ReadClickBenchRows(const std::filesystem::path &path) {
 }
 
 std::vector<int64_t> ReadReferenceTimes(const std::filesystem::path &path) {
-    CSVReader reader(path.string());
+    CsvReader reader(path.string());
     std::vector<int64_t> times;
     Row row;
     while (!reader.IsEnd()) {
@@ -70,9 +70,9 @@ std::vector<int64_t> ReadReferenceTimes(const std::filesystem::path &path) {
 
 std::string QueryFileName(size_t query_index) {
     ++query_index;
-    const std::string number =
-        query_index < 10 ? "0" + std::to_string(query_index)
-                         : std::to_string(query_index);
+    const std::string number = query_index < 10
+                                   ? "0" + std::to_string(query_index)
+                                   : std::to_string(query_index);
     return "query" + number + ".csv";
 }
 
@@ -251,7 +251,7 @@ TEST(HitsE2ETest, ConvertsRealHitsSampleAndReadsItBack) {
                   columnar_path.string());
     ColumnarReader reader(columnar_path.string());
     Scheme columns = AllColumns(reader);
-    IOScanner scanner(columns, reader);
+    IoScanner scanner(columns, reader);
 
     ASSERT_FALSE(scanner.IsEnd());
     Batch first_chunk = scanner.ReadNext();
@@ -289,7 +289,7 @@ TEST(HitsE2ETest, ConvertHitsSampleAndPrintStats) {
 
     ColumnarReader reader(columnar_path.string());
     Scheme columns = AllColumns(reader);
-    IOScanner scanner(columns, reader);
+    IoScanner scanner(columns, reader);
     size_t total_rows = 0;
     while (!scanner.IsEnd()) {
         Batch chunk = scanner.ReadNext();
@@ -335,8 +335,8 @@ TEST(HitsE2ETest, RoundTripCsvToHubToCsvMatches) {
     }
 
     // Step 3: Compare original and output
-    CSVReader original_reader(data_path.string());
-    CSVReader output_reader(output_csv_path.string());
+    CsvReader original_reader(data_path.string());
+    CsvReader output_reader(output_csv_path.string());
 
     Row original_row, output_row;
     size_t row_count = 0;
@@ -428,7 +428,8 @@ TEST(HitsE2ETest, PrintsQueryTimesAgainstReference) {
         fixtures_dir / "Clickbench" / "small" / "query_times.csv");
     if (!std::filesystem::exists(columnar_path) ||
         !std::filesystem::exists(times_path)) {
-        GTEST_SKIP() << "Real hits columnar fixture or query times are missing.";
+        GTEST_SKIP()
+            << "Real hits columnar fixture or query times are missing.";
     }
 
     const auto temp_dir =
@@ -452,9 +453,9 @@ TEST(HitsE2ETest, PrintsQueryTimesAgainstReference) {
             std::chrono::duration_cast<std::chrono::milliseconds>(finish -
                                                                   start)
                 .count();
-        const int64_t reference_ms =
-            query_index < reference_times.size() ? reference_times[query_index]
-                                                 : 0;
+        const int64_t reference_ms = query_index < reference_times.size()
+                                         ? reference_times[query_index]
+                                         : 0;
         const double ratio = reference_ms == 0
                                  ? 0.0
                                  : static_cast<double>(actual_ms) /

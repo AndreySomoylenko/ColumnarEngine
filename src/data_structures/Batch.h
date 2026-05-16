@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Column.h"
-#include "Scheme.h"
+#include "data_structures/Column.h"
+#include "data_structures/Scheme.h"
 #include <optional>
 #include <unordered_set>
 

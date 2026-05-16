@@ -8,7 +8,7 @@ class ColumnarWriter {
   public:
     ColumnarWriter(const std::string &filename);
     void WriteChunk(const Batch &batch);
-    void Close(const Scheme &scheme);
+    void Close(const Scheme &scheme) &&;
 
   private:
     std::vector<std::streampos> chunk_starts;

@@ -1,8 +1,8 @@
-#include "Pipeline.h"
+#include "core/Pipeline.h"
 #include "io/BatchScanner.h"
-#include "io/CSVWriter.h"
 #include "io/ColumnarReader.h"
-#include "io/IOScanner.h"
+#include "io/CsvWriter.h"
+#include "io/IoScanner.h"
 #include "io/VectorScanner.h"
 #include <stdexcept>
 #include <utility>
@@ -11,13 +11,13 @@ Pipeline::Pipeline(std::vector<std::unique_ptr<Operation>> &&operations,
                    ColumnarReader &reader, const Scheme &scheme,
                    const std::string &result_filename)
     : operations_(std::move(operations)), writer_(result_filename),
-      scanner_(std::make_unique<IOScanner>(scheme, reader)) {}
+      scanner_(std::make_unique<IoScanner>(scheme, reader)) {}
 
 Pipeline::Pipeline(std::vector<std::unique_ptr<Operation>> &&operations,
                    ColumnarReader &reader, Scheme &&scheme,
                    const std::string &result_filename)
     : operations_(std::move(operations)), writer_(result_filename),
-      scanner_(std::make_unique<IOScanner>(std::move(scheme), reader)) {}
+      scanner_(std::make_unique<IoScanner>(std::move(scheme), reader)) {}
 
 namespace {
 
@@ -64,8 +64,7 @@ void Pipeline::Execute() {
             return;
         }
 
-        BlockingOperation &blocking =
-            AsBlocking(*operations_[operation_index]);
+        BlockingOperation &blocking = AsBlocking(*operations_[operation_index]);
         while (!scanner_->IsEnd()) {
             Batch batch = scanner_->ReadNext();
             for (auto *operation : streaming_operations) {

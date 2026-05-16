@@ -31,11 +31,11 @@ class Column : public std::enable_shared_from_this<Column> {
     virtual size_t Size() const = 0;
     virtual void Push(const std::string &s) = 0;
     virtual void Push(const char *data, size_t sz) = 0;
-    virtual std::string ToString(const size_t index) = 0;
+    virtual std::string ToString(const size_t index) const = 0;
     virtual ColumnValueView Get(size_t index) const = 0;
     virtual void Clear() = 0;
 
-    virtual std::pair<const char *, size_t> ToWrite() = 0;
+    virtual std::pair<const char *, size_t> ToWrite() const = 0;
 
     virtual ColumnTypes GetColumnType() const = 0;
 
@@ -64,11 +64,11 @@ class Int16Column : public Column {
     size_t Size() const override;
     void Push(const std::string &s) override;
     void Push(const char *data, size_t sz) override;
-    std::string ToString(const size_t index) override;
+    std::string ToString(const size_t index) const override;
     void Clear() override;
     ColumnValueView Get(size_t index) const override;
 
-    std::pair<const char *, size_t> ToWrite() override;
+    std::pair<const char *, size_t> ToWrite() const override;
 
     ColumnTypes GetColumnType() const override;
 
@@ -86,11 +86,11 @@ class Int32Column : public Column {
     size_t Size() const override;
     void Push(const std::string &s) override;
     void Push(const char *data, size_t sz) override;
-    std::string ToString(const size_t index) override;
+    std::string ToString(const size_t index) const override;
     void Clear() override;
     ColumnValueView Get(size_t index) const override;
 
-    std::pair<const char *, size_t> ToWrite() override;
+    std::pair<const char *, size_t> ToWrite() const override;
 
     ColumnTypes GetColumnType() const override;
 
@@ -109,11 +109,11 @@ class Int64Column : public Column {
     size_t Size() const override;
     void Push(const std::string &s) override;
     void Push(const char *data, size_t sz) override;
-    std::string ToString(const size_t index) override;
+    std::string ToString(const size_t index) const override;
     void Clear() override;
     ColumnValueView Get(size_t index) const override;
 
-    std::pair<const char *, size_t> ToWrite() override;
+    std::pair<const char *, size_t> ToWrite() const override;
 
     ColumnTypes GetColumnType() const override;
 
@@ -131,11 +131,11 @@ class Int128Column : public Column {
     size_t Size() const override;
     void Push(const std::string &s) override;
     void Push(const char *data, size_t sz) override;
-    std::string ToString(const size_t index) override;
+    std::string ToString(const size_t index) const override;
     void Clear() override;
     ColumnValueView Get(size_t index) const override;
 
-    std::pair<const char *, size_t> ToWrite() override;
+    std::pair<const char *, size_t> ToWrite() const override;
 
     ColumnTypes GetColumnType() const override;
 
@@ -153,11 +153,11 @@ class DoubleColumn : public Column {
     size_t Size() const override;
     void Push(const std::string &s) override;
     void Push(const char *data, size_t sz) override;
-    std::string ToString(const size_t index) override;
+    std::string ToString(const size_t index) const override;
     void Clear() override;
     ColumnValueView Get(size_t index) const override;
 
-    std::pair<const char *, size_t> ToWrite() override;
+    std::pair<const char *, size_t> ToWrite() const override;
 
     ColumnTypes GetColumnType() const override;
 
@@ -176,11 +176,11 @@ class StringColumn : public Column {
     size_t Size() const override;
     void Push(const std::string &s) override;
     void Push(const char *data, size_t sz) override;
-    std::string ToString(const size_t index) override;
+    std::string ToString(const size_t index) const override;
     ColumnValueView Get(size_t index) const override;
     void Clear() override;
 
-    std::pair<const char *, size_t> ToWrite() override;
+    std::pair<const char *, size_t> ToWrite() const override;
 
     ColumnTypes GetColumnType() const override;
 
@@ -195,18 +195,17 @@ class TimeColumn : public Column {
     TimeColumn() = default;
     explicit TimeColumn(bool is_date);
     TimeColumn(const size_t sz, bool is_date = false);
-    TimeColumn(const char *data, size_t sz, size_t count,
-               bool is_date = false);
+    TimeColumn(const char *data, size_t sz, size_t count, bool is_date = false);
 
     TimeColumn(ByteVector &&data, bool is_date = false);
     size_t Size() const override;
     void Push(const std::string &s) override;
     void Push(const char *data, size_t sz) override;
-    std::string ToString(const size_t index) override;
+    std::string ToString(const size_t index) const override;
     ColumnValueView Get(size_t index) const override;
     void Clear() override;
 
-    std::pair<const char *, size_t> ToWrite() override;
+    std::pair<const char *, size_t> ToWrite() const override;
 
     ColumnTypes GetColumnType() const override;
 

@@ -1,4 +1,4 @@
-#include "VectorScanner.h"
+#include "io/VectorScanner.h"
 
 VectorScanner::VectorScanner(const std::vector<Batch> &batches)
     : batches_(batches) {}

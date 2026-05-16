@@ -35,10 +35,12 @@ auto ReadValue(const std::shared_ptr<Column> &column, size_t i) {
 }
 
 template <typename T, typename Compare>
-T Extremum(const std::shared_ptr<Column> &column,
-           const EnabledRaws &selected, const char *empty_error,
-           Compare compare) {
+T Extremum(const std::shared_ptr<Column> &column, const EnabledRaws &selected,
+           const char *empty_error, Compare compare) {
     if (column->Size() == 0) {
+        throw std::invalid_argument(empty_error);
+    }
+    if (selected.has_value() && selected->empty()) {
         throw std::invalid_argument(empty_error);
     }
 
@@ -149,9 +151,11 @@ double Avg(const std::shared_ptr<Column> &column,
     if (column->Size() == 0) {
         throw std::invalid_argument("Cannot calculate average of empty column");
     }
-    const size_t count = selected.has_value() ? selected->size() : column->Size();
+    const size_t count =
+        selected.has_value() ? selected->size() : column->Size();
     if (count == 0) {
-        throw std::invalid_argument("Cannot calculate average of empty selection");
+        throw std::invalid_argument(
+            "Cannot calculate average of empty selection");
     }
 
     T sum = agg::Sum<T>(column, selected);

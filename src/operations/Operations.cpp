@@ -1,8 +1,8 @@
-#include "Operations.h"
-#include "Aggregations.h"
+#include "operations/Operations.h"
 #include "data_structures/Batch.h"
 #include "data_structures/Column.h"
 #include "data_structures/Scheme.h"
+#include "operations/Aggregations.h"
 #include <algorithm>
 #include <cctype>
 #include <chrono>

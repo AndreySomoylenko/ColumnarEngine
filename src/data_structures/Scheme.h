@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Column.h"
+#include "data_structures/Column.h"
 #include <string>
 #include <unordered_map>
 #include <vector>

@@ -9,7 +9,7 @@
 
 #include "core/Engine.h"
 #include "core/Pipeline.h"
-#include "io/CSVReader.h"
+#include "io/CsvReader.h"
 #include "operations/Operations.h"
 
 namespace {
@@ -37,7 +37,7 @@ class EngineTest : public ::testing::Test {
     }
 
     std::vector<Row> ReadCsv(const std::string &name) const {
-        CSVReader reader(name);
+        CsvReader reader(name);
         std::vector<Row> rows;
         while (!reader.IsEnd()) {
             Row row;
@@ -105,8 +105,8 @@ TEST_F(EngineTest, PipelineStreamsUntilBlockingOperationAndWritesCsv) {
     read_scheme.Add({"id", "int64"});
 
     std::vector<std::unique_ptr<Operation>> operations;
-    operations.emplace_back(std::make_unique<Filter>(
-        MakeFilter({MakeInt64GreaterFilter(0, 1)})));
+    operations.emplace_back(
+        std::make_unique<Filter>(MakeFilter({MakeInt64GreaterFilter(0, 1)})));
     operations.emplace_back(std::make_unique<Aggregation>(
         MakeAggregation({MakeCountAgg(0, "rows")})));
 
@@ -148,8 +148,8 @@ TEST_F(EngineTest, ExecutesHitsCountWhereAdvEngineIdIsNotZeroQuery) {
     read_scheme.Add({"AdvEngineID", "int16"});
 
     std::vector<std::unique_ptr<Operation>> operations;
-    operations.emplace_back(std::make_unique<Filter>(
-        MakeFilter({MakeInt64NotEqualFilter(0, 0)})));
+    operations.emplace_back(
+        std::make_unique<Filter>(MakeFilter({MakeInt64NotEqualFilter(0, 0)})));
     operations.emplace_back(std::make_unique<Aggregation>(
         MakeAggregation({MakeCountAgg(0, "count")})));
 
