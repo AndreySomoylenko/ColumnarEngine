@@ -975,15 +975,18 @@ void Filter::Execute(Batch &batch) {
     for (auto &task : conditions_) {
         if (!enabled.has_value()) {
             enabled = std::unordered_set<size_t>{};
-            for (size_t ind : enabled.value()) {
+            enabled->reserve(batch.VerticalSize());
+            for (size_t ind = 0; ind < batch.VerticalSize(); ++ind) {
                 if (CheckFilterCondition(batch, task, ind)) {
                     enabled->insert(ind);
                 }
             }
         } else {
-            for (size_t ind = 0; ind < batch.VerticalSize(); ++ind) {
-                if (!CheckFilterCondition(batch, task, ind)) {
-                    enabled->erase(ind);
+            for (auto it = enabled->begin(); it != enabled->end();) {
+                if (!CheckFilterCondition(batch, task, *it)) {
+                    it = enabled->erase(it);
+                } else {
+                    ++it;
                 }
             }
         }
