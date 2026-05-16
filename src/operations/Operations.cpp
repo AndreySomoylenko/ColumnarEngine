@@ -971,28 +971,23 @@ Filter MakeFilter(std::vector<FilterTask> &&conditions) {
 }
 
 void Filter::Execute(Batch &batch) {
-    auto enabled = static_cast<const Batch &>(batch).GetEnabledRaws();
+    auto &enabled = batch.GetEnabledRaws();
     for (auto &task : conditions_) {
-        std::unordered_set<size_t> next_enabled;
-
         if (!enabled.has_value()) {
-            for (size_t ind = 0; ind < batch.VerticalSize(); ++ind) {
+            enabled = std::unordered_set<size_t>{};
+            for (size_t ind : enabled.value()) {
                 if (CheckFilterCondition(batch, task, ind)) {
-                    next_enabled.insert(ind);
+                    enabled->insert(ind);
                 }
             }
         } else {
-            for (size_t ind : enabled.value()) {
-                if (CheckFilterCondition(batch, task, ind)) {
-                    next_enabled.insert(ind);
+            for (size_t ind = 0; ind < batch.VerticalSize(); ++ind) {
+                if (!CheckFilterCondition(batch, task, ind)) {
+                    enabled->erase(ind);
                 }
             }
         }
-
-        enabled = std::move(next_enabled);
     }
-
-    batch.SetEnabledRaws(std::move(enabled));
 }
 
 TopK::TopK(std::vector<size_t> &&column_indices, size_t k,
