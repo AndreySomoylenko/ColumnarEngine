@@ -274,7 +274,7 @@ void Engine::Make08Querry() {
         MakeGroupBy(MakeGroupByTask({adv_engine_id}, {MakeGroupCount()}),
                     projection.ReadScheme())));
     operations.emplace_back(std::make_unique<TopK>(
-        MakeTopK({MakeDescendingSortKey(1)}, 100000, result_scheme)));
+        MakeTopK({MakeDescendingSortKey(1)}, SIZE_MAX, result_scheme)));
 
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
                       "query08.csv");
