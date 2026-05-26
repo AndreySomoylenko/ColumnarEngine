@@ -10,7 +10,6 @@
 #include <cstdint>
 #include <cstring>
 #include <functional>
-#include <iterator>
 #include <memory>
 #include <regex>
 #include <stdexcept>
