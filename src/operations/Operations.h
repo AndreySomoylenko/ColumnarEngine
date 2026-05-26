@@ -149,25 +149,23 @@ SortKey MakeSortKey(size_t column_index, SortDirection direction);
 SortKey MakeAscendingSortKey(size_t column_index);
 SortKey MakeDescendingSortKey(size_t column_index);
 
+struct OwnedRow {
+    std::vector<size_t> offsets;
+    std::vector<size_t> sizes;
+    std::string data;
+
+    ColumnValueView Get(size_t column_index) const;
+};
+
 struct CompareForTopK {
     std::vector<SortKey> sort_keys;
+    std::vector<ColumnTypes> types;
 
-    explicit CompareForTopK(const std::vector<SortKey> &keys)
-        : sort_keys(keys) {}
+    CompareForTopK(const std::vector<SortKey> &keys,
+                   const std::vector<ColumnTypes> &scheme_types)
+        : sort_keys(keys), types(scheme_types) {}
 
-    bool operator()(const std::vector<std::shared_ptr<Column>> &a,
-                    const std::vector<std::shared_ptr<Column>> &b) const {
-        for (const auto &key : sort_keys) {
-            const size_t idx = key.column_index;
-            if (*a[idx] != *b[idx]) {
-                if (key.direction == SortDirection::Ascending) {
-                    return *a[idx] < *b[idx];
-                }
-                return *b[idx] < *a[idx];
-            }
-        }
-        return false;
-    }
+    bool operator()(const OwnedRow &a, const OwnedRow &b) const;
 };
 
 class TopK : public BlockingOperation {
@@ -182,7 +180,7 @@ class TopK : public BlockingOperation {
 
   private:
     std::vector<SortKey> sort_keys_;
-    std::multiset<std::vector<std::shared_ptr<Column>>, CompareForTopK> ans_;
+    std::multiset<OwnedRow, CompareForTopK> ans_;
     size_t k_;
 
     Scheme result_scheme_;

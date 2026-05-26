@@ -39,5 +39,5 @@ class ByteVector {
 
     void ReAllocate();
 
-    static constexpr size_t kDefaultSize = 24;
+    static constexpr size_t kDefaultSize = 256;
 };

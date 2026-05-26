@@ -2,7 +2,7 @@
 #include <algorithm>
 
 ByteVector::ByteVector()
-    : capasity_(8 * 1024), size_(0), size_in_bytes_(0),
+    : capasity_(kDefaultSize), size_(0), size_in_bytes_(0),
       data_(malloc(capasity_)) {}
 
 ByteVector::ByteVector(size_t size, size_t size_in_bytes, void *buf) noexcept

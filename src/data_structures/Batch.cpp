@@ -243,4 +243,18 @@ void Batch::PushColumnVector(const std::vector<std::shared_ptr<Column>> &row) {
     }
 }
 
+void Batch::PushRowFrom(const Batch &source, size_t row) {
+    if (HorizontalSize() != source.HorizontalSize()) {
+        throw std::invalid_argument("Batch width doesn't match");
+    }
+    if (row >= source.VerticalSize()) {
+        throw std::out_of_range("Incorrect row index");
+    }
+
+    for (size_t i = 0; i < HorizontalSize(); ++i) {
+        auto to_push = source.GetColumn(i)->Get(row);
+        columns_[i]->Push(to_push.data, to_push.size);
+    }
+}
+
 bool Batch::IsEmpty() const { return VerticalSize() == 0; }

@@ -29,6 +29,7 @@ class Batch {
     const std::vector<std::shared_ptr<Column>>
     GetRowLikeColumnVector(const size_t index) const;
     void PushColumnVector(const std::vector<std::shared_ptr<Column>> &row);
+    void PushRowFrom(const Batch &source, size_t row);
 
     void SetEnabledRaws(std::optional<std::unordered_set<size_t>> &&enabled);
     const std::optional<std::unordered_set<size_t>> &GetEnabledRaws() const;

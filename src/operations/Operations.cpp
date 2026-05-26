@@ -75,6 +75,66 @@ size_t FixedTypeSize(ColumnTypes type) {
 }
 
 template <typename T>
+int CompareTypedValues(ColumnValueView lhs, ColumnValueView rhs) {
+    T lhs_value;
+    T rhs_value;
+    std::memcpy(&lhs_value, lhs.data, sizeof(lhs_value));
+    std::memcpy(&rhs_value, rhs.data, sizeof(rhs_value));
+
+    if (lhs_value < rhs_value) {
+        return -1;
+    }
+    if (rhs_value < lhs_value) {
+        return 1;
+    }
+    return 0;
+}
+
+int CompareColumnValueViews(ColumnValueView lhs, ColumnValueView rhs,
+                            ColumnTypes type) {
+    switch (type) {
+    case ColumnTypes::Int16:
+        return CompareTypedValues<int16_t>(lhs, rhs);
+    case ColumnTypes::Int32:
+        return CompareTypedValues<int32_t>(lhs, rhs);
+    case ColumnTypes::Int64:
+        return CompareTypedValues<int64_t>(lhs, rhs);
+    case ColumnTypes::Int128:
+        return CompareTypedValues<__int128>(lhs, rhs);
+    case ColumnTypes::Double:
+        return CompareTypedValues<double>(lhs, rhs);
+    case ColumnTypes::Timestamp:
+    case ColumnTypes::Date:
+        return CompareTypedValues<std::chrono::system_clock::time_point>(lhs,
+                                                                         rhs);
+    case ColumnTypes::String:
+    case ColumnTypes::Unknown: {
+        std::string_view lhs_view(lhs.data, lhs.size);
+        std::string_view rhs_view(rhs.data, rhs.size);
+        if (lhs_view < rhs_view) {
+            return -1;
+        }
+        if (rhs_view < lhs_view) {
+            return 1;
+        }
+        return 0;
+    }
+    }
+
+    throw std::invalid_argument("Unknown column type");
+}
+
+bool CompareBySortDirection(int compare_result, SortDirection direction) {
+    if (compare_result == 0) {
+        return false;
+    }
+    if (direction == SortDirection::Ascending) {
+        return compare_result < 0;
+    }
+    return compare_result > 0;
+}
+
+template <typename T>
 T ReadColumnValue(const std::shared_ptr<Column> &column, size_t row_index) {
     auto value = column->Get(row_index);
 
@@ -358,25 +418,26 @@ ColumnTypes GroupByResultType(AggType agg_type, ColumnTypes column_type) {
     }
 }
 
-std::shared_ptr<Column> MakeExpressionColumn(ColumnTypes type) {
+std::shared_ptr<Column> MakeExpressionColumn(ColumnTypes type,
+                                             size_t expected_size) {
     switch (type) {
     case ColumnTypes::Int16:
-        return std::make_shared<Int16Column>();
+        return std::make_shared<Int16Column>(expected_size);
     case ColumnTypes::Int32:
-        return std::make_shared<Int32Column>();
+        return std::make_shared<Int32Column>(expected_size);
     case ColumnTypes::Int64:
-        return std::make_shared<Int64Column>();
+        return std::make_shared<Int64Column>(expected_size);
     case ColumnTypes::Int128:
-        return std::make_shared<Int128Column>();
+        return std::make_shared<Int128Column>(expected_size);
     case ColumnTypes::Double:
-        return std::make_shared<DoubleColumn>();
+        return std::make_shared<DoubleColumn>(expected_size);
     case ColumnTypes::Timestamp:
-        return std::make_shared<TimeColumn>();
+        return std::make_shared<TimeColumn>(expected_size);
     case ColumnTypes::Date:
-        return std::make_shared<TimeColumn>(true);
+        return std::make_shared<TimeColumn>(expected_size, true);
     case ColumnTypes::String:
     case ColumnTypes::Unknown:
-        return std::make_shared<StringColumn>();
+        return std::make_shared<StringColumn>(expected_size);
     default:
         throw std::invalid_argument("Unsupported expression column type");
     }
@@ -993,19 +1054,81 @@ void Filter::Execute(Batch &batch) {
     }
 }
 
+ColumnValueView OwnedRow::Get(size_t column_index) const {
+    if (column_index >= offsets.size()) {
+        throw std::out_of_range("Incorrect column index");
+    }
+    return {data.data() + offsets[column_index], sizes[column_index]};
+}
+
+bool CompareForTopK::operator()(const OwnedRow &a, const OwnedRow &b) const {
+    for (const auto &key : sort_keys) {
+        const size_t idx = key.column_index;
+        const int compare_result =
+            CompareColumnValueViews(a.Get(idx), b.Get(idx), types[idx]);
+        if (compare_result != 0) {
+            return CompareBySortDirection(compare_result, key.direction);
+        }
+    }
+    return false;
+}
+
+namespace {
+
+std::vector<SortKey> MakeTopKSortKeys(const std::vector<size_t> &column_indices,
+                                      SortDirection direction) {
+    std::vector<SortKey> sort_keys;
+    sort_keys.reserve(column_indices.size());
+    for (size_t column_index : column_indices) {
+        sort_keys.push_back({column_index, direction});
+    }
+    return sort_keys;
+}
+
+OwnedRow MakeOwnedRow(const Batch &batch, size_t row) {
+    OwnedRow result;
+    result.offsets.reserve(batch.HorizontalSize());
+    result.sizes.reserve(batch.HorizontalSize());
+
+    for (size_t column_index = 0; column_index < batch.HorizontalSize();
+         ++column_index) {
+        const auto value = batch.GetColumn(column_index)->Get(row);
+        result.offsets.push_back(result.data.size());
+        result.sizes.push_back(value.size);
+        result.data.append(value.data, value.size);
+    }
+
+    return result;
+}
+
+bool IsBatchRowBeforeOwnedRow(const Batch &batch, size_t row,
+                              const OwnedRow &owned_row,
+                              const std::vector<SortKey> &sort_keys,
+                              const std::vector<ColumnTypes> &types) {
+    for (const auto &key : sort_keys) {
+        const size_t idx = key.column_index;
+        const auto value = batch.GetColumn(idx)->Get(row);
+        const int compare_result =
+            CompareColumnValueViews(value, owned_row.Get(idx), types[idx]);
+        if (compare_result != 0) {
+            return CompareBySortDirection(compare_result, key.direction);
+        }
+    }
+    return false;
+}
+
+} // namespace
+
 TopK::TopK(std::vector<size_t> &&column_indices, size_t k,
            const Scheme &result_scheme, SortDirection direction)
-    : sort_keys_(), ans_(CompareForTopK(sort_keys_)), k_(k),
-      result_scheme_(result_scheme) {
-    sort_keys_.reserve(column_indices.size());
-    for (size_t column_index : column_indices) {
-        sort_keys_.push_back({column_index, direction});
-    }
-}
+    : sort_keys_(MakeTopKSortKeys(column_indices, direction)),
+      ans_(CompareForTopK(sort_keys_, result_scheme.GetSchemeTypes())), k_(k),
+      result_scheme_(result_scheme) {}
 
 TopK::TopK(std::vector<SortKey> &&sort_keys, size_t k,
            const Scheme &result_scheme)
-    : sort_keys_(std::move(sort_keys)), ans_(CompareForTopK(sort_keys_)), k_(k),
+    : sort_keys_(std::move(sort_keys)),
+      ans_(CompareForTopK(sort_keys_, result_scheme.GetSchemeTypes())), k_(k),
       result_scheme_(result_scheme) {}
 
 SortKey MakeSortKey(size_t column_index, SortDirection direction) {
@@ -1031,20 +1154,31 @@ TopK MakeTopK(std::vector<size_t> &&column_indices, size_t k,
 }
 
 void TopK::Process(const Batch &batch) {
+    const auto PushRow = [&](size_t row) {
+        if (k_ == 0) {
+            return;
+        }
+        if (ans_.size() < k_) {
+            ans_.insert(MakeOwnedRow(batch, row));
+            return;
+        }
+
+        auto worst = --ans_.end();
+        if (IsBatchRowBeforeOwnedRow(batch, row, *worst, sort_keys_,
+                                     result_scheme_.GetSchemeTypes())) {
+            ans_.erase(worst);
+            ans_.insert(MakeOwnedRow(batch, row));
+        }
+    };
+
     if (batch.GetEnabledRaws().has_value()) {
         for (auto &ind : batch.GetEnabledRaws().value()) {
-            ans_.insert(batch.GetRowLikeColumnVector(ind));
-            if (ans_.size() > k_) {
-                ans_.erase(std::prev(ans_.end()));
-            }
+            PushRow(ind);
         }
         return;
     } else {
         for (size_t i = 0; i < batch.VerticalSize(); ++i) {
-            ans_.insert(batch.GetRowLikeColumnVector(i));
-            if (ans_.size() > k_) {
-                ans_.erase(std::prev(ans_.end()));
-            }
+            PushRow(i);
         }
     }
 }
@@ -1059,7 +1193,10 @@ std::vector<Batch> TopK::Finalize() && {
             result.emplace_back(std::move(part_of_ans));
             part_of_ans = Batch(result_scheme_);
         }
-        part_of_ans.PushColumnVector(row);
+        for (size_t i = 0; i < part_of_ans.HorizontalSize(); ++i) {
+            auto value = row.Get(i);
+            part_of_ans.AddToColumn(value.data, value.size, i);
+        }
     }
 
     if (!part_of_ans.IsEmpty()) {
@@ -1605,7 +1742,7 @@ void Offset::Process(const Batch &batch) {
         if (result_.empty() || !result_.back().EnableToPush()) {
             result_.emplace_back(batch.GetScheme());
         }
-        result_.back().PushColumnVector(batch.GetRowLikeColumnVector(row));
+        result_.back().PushRowFrom(batch, row);
     };
 
     for (size_t row = 0; row < batch.VerticalSize(); ++row) {
@@ -1634,7 +1771,8 @@ void Expression::Execute(Batch &batch) {
     std::vector<std::shared_ptr<Column>> expression_columns;
     expression_columns.reserve(tasks_.size());
     for (const auto &task : tasks_) {
-        expression_columns.emplace_back(MakeExpressionColumn(task.result_type));
+        expression_columns.emplace_back(
+            MakeExpressionColumn(task.result_type, batch.VerticalSize()));
     }
 
     for (size_t row = 0; row < batch.VerticalSize(); ++row) {
