@@ -8,7 +8,7 @@ CsvReader::CsvReader(const std::string &filename, char sep) : sep_(sep) {
     is_.open(filename, std::ios::binary);
 
     if (!is_) {
-        throw std::invalid_argument("You give me really bad file");
+        throw std::invalid_argument("You give me really bad file" + filename);
     }
 
     tmp_.reserve(1 << 20);
