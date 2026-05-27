@@ -116,23 +116,21 @@ URLHash,int64
 CLID,int32
 CSV
 
+
+RESULTS_ROOT="${RESULTS_ROOT:-/workspace/data/results}"
+mkdir -p "$RESULTS_ROOT"
+
 START_NS=$(date +%s%N)
 
 ./build/sandbox/sandbox_app convert \
-    > stdout.txt \
-    2> stderr.txt
+    > "$RESULTS_ROOT/convert_stdout.txt" \
+    2> "$RESULTS_ROOT/convert_stderr.txt"
 
 END_NS=$(date +%s%N)
 
 ELAPSED_MS=$(((END_NS - START_NS) / 1000000))
 
-LOG_FILE="$RESULTS/convert.log"
-
 {
     echo "convert"
     echo "elapsed_ms=$ELAPSED_MS"
-    echo "--- stdout ---"
-    cat stdout.txt
-    echo "--- stderr ---"
-    cat stderr.txt
-} > "$LOG_FILE"
+} > "$RESULTS_ROOT/convert.log"
