@@ -44,7 +44,7 @@ class Batch {
 
   private:
     std::vector<std::shared_ptr<Column>> columns_;
-    static constexpr size_t kMaxRowsPerBatch = 4096;
+    static constexpr size_t kMaxRowsPerBatch = 1 << 14;
     static constexpr size_t kPredictedSize = 300000;
 
     std::optional<std::unordered_set<size_t>> enabled_;
