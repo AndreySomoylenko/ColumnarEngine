@@ -122,9 +122,7 @@ mkdir -p "$RESULTS_ROOT"
 
 START_NS=$(date +%s%N)
 
-./build/sandbox/sandbox_app convert \
-    > "$RESULTS_ROOT/convert_stdout.txt" \
-    2> "$RESULTS_ROOT/convert_stderr.txt"
+./build/sandbox/sandbox_app convert
 
 END_NS=$(date +%s%N)
 
