@@ -1,7 +1,9 @@
 #include "io/ColumnarWriter.h"
 #include "data_structures/Column.h"
+#include "utils/Compresser.h"
 #include <cstddef>
 #include <ios>
+#include <memory>
 #include <stdexcept>
 
 ColumnarWriter::ColumnarWriter(const std::string &filename) {
@@ -23,15 +25,45 @@ void ColumnarWriter::WriteChunk(const Batch &batch) {
     for (auto &x : batch.GetColumns()) {
         auto [data, sz] = x->ToWrite();
 
-        if (x->GetColumnType() == ColumnTypes::String ||
-            x->GetColumnType() == ColumnTypes::Unknown) {
-            os_.write(reinterpret_cast<const char *>(&sz), sizeof(sz));
-            os_.write(data, sz);
-            size_t offsets_sz = x->GetOffsets().size() * sizeof(size_t);
-            os_.write(reinterpret_cast<const char *>(&offsets_sz),
-                      sizeof(offsets_sz));
-            os_.write(reinterpret_cast<const char *>(x->GetOffsets().data()),
-                      x->GetOffsets().size() * sizeof(size_t));
+        auto type = x->GetColumnType();
+        if (type == ColumnTypes::String || type == ColumnTypes::Unknown) {
+            auto [value, meta] = Compression::CompressDictFromString(
+                std::static_pointer_cast<const StringColumn>(x));
+
+            size_t dict_size = meta.dict.SizeInBytes();
+            size_t offsets_size = meta.offsets.size() * sizeof(size_t);
+            size_t value_size = value.size();
+
+            os_.write(reinterpret_cast<const char *>(&meta.bit_width),
+                      sizeof(meta.bit_width));
+            os_.write(reinterpret_cast<const char *>(&meta.real_size),
+                      sizeof(meta.real_size));
+            os_.write(reinterpret_cast<const char *>(&dict_size),
+                      sizeof(size_t));
+            os_.write(meta.dict.Data(), meta.dict.SizeInBytes());
+            os_.write(reinterpret_cast<const char *>(&offsets_size),
+                      sizeof(size_t));
+            os_.write(reinterpret_cast<const char *>(meta.offsets.data()),
+                      meta.offsets.size() * sizeof(size_t));
+            os_.write(reinterpret_cast<const char *>(&value_size),
+                      sizeof(value_size));
+            os_.write(reinterpret_cast<const char *>(value.data()),
+                      value.size());
+
+        } else if (type == ColumnTypes::Int16 || type == ColumnTypes::Int32 ||
+                   type == ColumnTypes::Int64) {
+            const auto &[value, meta] =
+                Compression::CompressIntTypesBitPacking(x);
+
+            size_t value_size = value.size();
+            os_.write(reinterpret_cast<const char *>(&meta.bit_width),
+                      sizeof(meta.bit_width));
+            os_.write(reinterpret_cast<const char *>(&meta.real_size),
+                      sizeof(meta.real_size));
+            os_.write(reinterpret_cast<const char *>(&value_size),
+                      sizeof(value_size));
+            os_.write(reinterpret_cast<const char *>(value.data()), value_size);
+
         } else {
             os_.write(data, sz);
         }

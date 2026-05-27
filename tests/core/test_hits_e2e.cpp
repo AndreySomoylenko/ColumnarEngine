@@ -3,11 +3,8 @@
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
-#include <numeric>
 #include <system_error>
-
 #include <gtest/gtest.h>
-
 #include "core/Engine.h"
 #include "io/ColumnarReader.h"
 #include "io/CsvReader.h"
@@ -299,6 +296,29 @@ TEST(HitsE2ETest, ConvertHitsSampleAndPrintStats) {
     EXPECT_GT(total_rows, 0U);
 
     std::filesystem::remove_all(temp_dir, ec);
+}
+
+TEST(HitsE2ETest, DISABLED_GenerateHitsHubFixture) {
+    const auto fixtures_dir = std::filesystem::path(COLUMNAR_TEST_FIXTURES_DIR);
+    const auto data_path = EnvPathOrDefault(
+        "COLUMNAR_HITS_CSV", (fixtures_dir / "hits_sample.csv").c_str());
+    const auto scheme_path = EnvPathOrDefault(
+        "COLUMNAR_HITS_SCHEME", (fixtures_dir / "scheme.csv").c_str());
+    const auto columnar_path = EnvPathOrDefault(
+        "COLUMNAR_HITS_HUB_OUTPUT", (fixtures_dir / "hits_sample.hub").c_str());
+
+    if (!std::filesystem::exists(data_path) ||
+        !std::filesystem::exists(scheme_path)) {
+        GTEST_SKIP() << "Real hits CSV or scheme CSV is missing.";
+    }
+
+    std::filesystem::create_directories(columnar_path.parent_path());
+
+    Engine engine(data_path.string(), scheme_path.string(),
+                  columnar_path.string());
+
+    ASSERT_TRUE(std::filesystem::exists(columnar_path));
+    EXPECT_GT(std::filesystem::file_size(columnar_path), 0U);
 }
 
 TEST(HitsE2ETest, RoundTripCsvToHubToCsvMatches) {

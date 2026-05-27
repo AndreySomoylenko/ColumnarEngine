@@ -29,6 +29,8 @@ struct ColumnValueView {
 class Column : public std::enable_shared_from_this<Column> {
   public:
     virtual size_t Size() const = 0;
+    Column() = default;
+    Column(Column &&other) = default;
     virtual void Push(const std::string &s) = 0;
     virtual void Push(const char *data, size_t sz) = 0;
     virtual std::string ToString(const size_t index) const = 0;

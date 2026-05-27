@@ -1,4 +1,4 @@
-add_library(columnar_utils StringConverter.cpp)
+add_library(columnar_utils StringConverter.cpp Compresser.cpp)
 
 target_include_directories(columnar_utils
     PUBLIC

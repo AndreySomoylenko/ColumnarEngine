@@ -1,4 +1,5 @@
 #include "io/ColumnarReader.h"
+#include "utils/Compresser.h"
 
 #include <cassert>
 #include <chrono>
@@ -154,27 +155,38 @@ Batch ColumnarReader::ReadNext(const Scheme &scheme, size_t &cur_index) {
             throw std::invalid_argument("You give me really bad file");
         }
 
-        if (types[column_index] == ColumnTypes::Int16) {
-            size_t col_size = static_cast<size_t>(column_size);
-            ByteVector data =
-                ReadByteVector(is_, col_size / sizeof(int16_t), col_size);
-            result.GetColumns()[i] =
-                std::make_shared<Int16Column>(std::move(data));
+        if (types[column_index] == ColumnTypes::Int16 ||
+            types[column_index] == ColumnTypes::Int32 ||
+            types[column_index] == ColumnTypes::Int64) {
 
-        } else if (types[column_index] == ColumnTypes::Int32) {
-            size_t col_size = static_cast<size_t>(column_size);
-            ByteVector data =
-                ReadByteVector(is_, col_size / sizeof(int32_t), col_size);
-            result.GetColumns()[i] =
-                std::make_shared<Int32Column>(std::move(data));
+            Compression::BitPackingMetaData meta;
 
-        } else if (types[column_index] == ColumnTypes::Int64) {
-            size_t col_size = static_cast<size_t>(column_size);
-            ByteVector data =
-                ReadByteVector(is_, col_size / sizeof(int64_t), col_size);
-            result.GetColumns()[i] =
-                std::make_shared<Int64Column>(std::move(data));
+            if (!is_.read(reinterpret_cast<char *>(&meta.bit_width),
+                          sizeof(meta.bit_width))) {
+                throw std::invalid_argument("You give me really bad file");
+            }
 
+            if (!is_.read(reinterpret_cast<char *>(&meta.real_size),
+                          sizeof(meta.real_size))) {
+                throw std::invalid_argument("You give me really bad file");
+            }
+
+            size_t packed_size;
+
+            if (!is_.read(reinterpret_cast<char *>(&packed_size),
+                          sizeof(packed_size))) {
+                throw std::invalid_argument("You give me really bad file");
+            }
+
+            std::vector<uint8_t> packed(packed_size);
+
+            if (!is_.read(reinterpret_cast<char *>(packed.data()),
+                          packed_size)) {
+                throw std::invalid_argument("You give me really bad file");
+            }
+
+            result.GetColumns()[i] = Compression::DecompressIntTypesBitPacking(
+                packed, meta, types[column_index]);
         } else if (types[column_index] == ColumnTypes::Int128) {
             size_t col_size = static_cast<size_t>(column_size);
             ByteVector data =
@@ -200,27 +212,59 @@ Batch ColumnarReader::ReadNext(const Scheme &scheme, size_t &cur_index) {
 
         } else if (types[column_index] == ColumnTypes::String ||
                    types[column_index] == ColumnTypes::Unknown) {
-            size_t data_sz;
-            if (!is_.read(reinterpret_cast<char *>(&data_sz),
-                          sizeof(data_sz))) {
-                throw std::invalid_argument("You give me really bad file");
-            }
-            OwnedBuffer buffer = ReadBuffer(is_, data_sz);
+            Compression::DictStringMetaData meta;
 
-            size_t offsets_sz;
-            if (!is_.read(reinterpret_cast<char *>(&offsets_sz),
-                          sizeof(offsets_sz))) {
-                throw std::invalid_argument("You give me really bad file");
-            }
-            std::vector<size_t> offsets(offsets_sz / sizeof(size_t));
-            if (!is_.read(reinterpret_cast<char *>(offsets.data()),
-                          offsets_sz)) {
+            if (!is_.read(reinterpret_cast<char *>(&meta.bit_width),
+                          sizeof(meta.bit_width))) {
                 throw std::invalid_argument("You give me really bad file");
             }
 
-            ByteVector data(offsets.size(), data_sz, buffer.release());
-            result.GetColumns()[i] = std::make_shared<StringColumn>(
-                std::move(data), std::move(offsets));
+            if (!is_.read(reinterpret_cast<char *>(&meta.real_size),
+                          sizeof(meta.real_size))) {
+                throw std::invalid_argument("You give me really bad file");
+            }
+
+            size_t dict_size;
+            if (!is_.read(reinterpret_cast<char *>(&dict_size),
+                          sizeof(dict_size))) {
+                throw std::invalid_argument("You give me really bad file");
+            }
+
+            OwnedBuffer dict_buffer = ReadBuffer(is_, dict_size);
+
+            size_t offsets_size;
+            if (!is_.read(reinterpret_cast<char *>(&offsets_size),
+                          sizeof(offsets_size))) {
+                throw std::invalid_argument("You give me really bad file");
+            }
+
+            if (offsets_size % sizeof(size_t) != 0) {
+                throw std::invalid_argument("You give me really bad file");
+            }
+
+            meta.offsets.resize(offsets_size / sizeof(size_t));
+            if (!is_.read(reinterpret_cast<char *>(meta.offsets.data()),
+                          offsets_size)) {
+                throw std::invalid_argument("You give me really bad file");
+            }
+
+            meta.dict = ByteVector(meta.offsets.size(), dict_size,
+                                   dict_buffer.release());
+
+            size_t value_size;
+            if (!is_.read(reinterpret_cast<char *>(&value_size),
+                          sizeof(value_size))) {
+                throw std::invalid_argument("You give me really bad file");
+            }
+
+            std::vector<uint8_t> packed(value_size);
+            if (!is_.read(reinterpret_cast<char *>(packed.data()),
+                          value_size)) {
+                throw std::invalid_argument("You give me really bad file");
+            }
+
+            result.GetColumns()[i] =
+                Compression::DecompressStringFromDict(packed, meta);
         }
     }
 
