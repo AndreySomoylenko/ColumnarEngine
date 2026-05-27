@@ -126,6 +126,8 @@ END_NS=$(date +%s%N)
 
 ELAPSED_MS=$(((END_NS - START_NS) / 1000000))
 
+LOG_FILE="$RESULTS/convert.log"
+
 {
     echo "convert"
     echo "elapsed_ms=$ELAPSED_MS"
@@ -133,4 +135,4 @@ ELAPSED_MS=$(((END_NS - START_NS) / 1000000))
     cat stdout.txt
     echo "--- stderr ---"
     cat stderr.txt
-} > convert.log
+} > "$LOG_FILE"
