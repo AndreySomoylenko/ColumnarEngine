@@ -116,4 +116,21 @@ URLHash,int64
 CLID,int32
 CSV
 
-./build/sandbox/sandbox_app convert
+START_NS=$(date +%s%N)
+
+./build/sandbox/sandbox_app convert \
+    > stdout.txt \
+    2> stderr.txt
+
+END_NS=$(date +%s%N)
+
+ELAPSED_MS=$(((END_NS - START_NS) / 1000000))
+
+{
+    echo "convert"
+    echo "elapsed_ms=$ELAPSED_MS"
+    echo "--- stdout ---"
+    cat stdout.txt
+    echo "--- stderr ---"
+    cat stderr.txt
+} > convert.log
