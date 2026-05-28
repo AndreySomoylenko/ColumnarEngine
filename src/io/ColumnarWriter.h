@@ -11,6 +11,7 @@ class ColumnarWriter {
     void Close(const Scheme &scheme) &&;
 
   private:
-    std::vector<std::streampos> chunk_starts;
     std::ofstream os_;
+    std::vector<std::vector<std::streampos>> column_starts_;
+    size_t batch_count;
 };

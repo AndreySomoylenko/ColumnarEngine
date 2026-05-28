@@ -24,4 +24,5 @@ class Scheme {
     size_t GetColumnIndexByName(const std::string &name) const;
     ColumnTypes GetColumnTypeByName(const std::string &name) const;
     std::vector<Row> GiveRows() const;
+    size_t GetColumnsNumber() const;
 };

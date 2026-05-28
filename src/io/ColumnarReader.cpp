@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
+#include <ios>
 #include <istream>
 #include <memory>
 #include <stdexcept>
@@ -63,16 +64,21 @@ ColumnarReader::ColumnarReader(const std::string &columnar) {
     std::streamoff chunk_start;
 
     size_t chunk_count;
-    if (!is_.read(reinterpret_cast<char *>(&chunk_count),
-                  sizeof(chunk_count))) {
-        throw std::invalid_argument("You give me really bad file");
-    }
+    is_.read(reinterpret_cast<char *>(&chunk_count), sizeof(chunk_count));
+    data_.columns_starts.resize(chunk_count);
+
+    size_t columns_count;
+    is_.read(reinterpret_cast<char *>(&columns_count), sizeof(columns_count));
+    data_.batch_numbers = chunk_count;
+    data_.column_numbers = columns_count;
     for (size_t i = 0; i < chunk_count; ++i) {
-        if (!is_.read(reinterpret_cast<char *>(&chunk_start),
-                      sizeof(chunk_start))) {
-            throw std::invalid_argument("You give me really bad file");
+        data_.columns_starts[i].resize(columns_count);
+        for (size_t j = 0; j < columns_count; ++j) {
+            std::streamoff column_start;
+            is_.read(reinterpret_cast<char *>(&column_start),
+                     sizeof(column_start));
+            data_.columns_starts[i][j] = column_start;
         }
-        data_.chunk_metas.push_back(std::streampos(chunk_start));
     }
 
     while (true) {
@@ -116,39 +122,32 @@ Batch ColumnarReader::ReadNext(const Scheme &scheme, size_t &cur_index) {
     }
 
     std::vector<size_t> columns_to_read;
-    size_t columns_count = data_.scheme.GetSchemeNames().size();
+    size_t columns_count = data_.column_numbers;
     for (auto &name : scheme.GetSchemeNames()) {
         columns_to_read.push_back(data_.GetColumnIndexByName(name));
     }
 
-    is_.seekg(data_.chunk_metas[cur_index], std::ios::beg);
-
-    Batch result(scheme, false);
+    Batch result(scheme, true);
 
     auto types = data_.scheme.GetSchemeTypes();
 
-    std::vector<std::streampos> columns_starts(columns_count);
-
-    for (size_t i = 0; i < columns_count; ++i) {
-        std::streamoff column_start;
-        if (!is_.read(reinterpret_cast<char *>(&column_start),
-                      sizeof(column_start))) {
-            throw std::invalid_argument("You give me really bad file");
-        }
-        columns_starts[i] = std::streampos(column_start);
-    }
-
     for (size_t i = 0; i < columns_to_read.size(); ++i) {
         const size_t column_index = columns_to_read[i];
-        is_.seekg(columns_starts[column_index], std::ios::beg);
+        is_.seekg(data_.columns_starts[cur_index][column_index], std::ios::beg);
 
         std::streamoff column_size;
+
         if (column_index + 1 == columns_count) {
-            column_size =
-                data_.chunk_metas[cur_index] - columns_starts[column_index];
+            if (cur_index != data_.batch_numbers - 1) {
+                column_size = data_.columns_starts[cur_index + 1][0] -
+                              data_.columns_starts[cur_index][column_index];
+            } else {
+                column_size = data_.meta_section_start -
+                              data_.columns_starts[cur_index][column_index];
+            }
         } else {
-            column_size =
-                columns_starts[column_index + 1] - columns_starts[column_index];
+            column_size = data_.columns_starts[cur_index][column_index + 1] -
+                          data_.columns_starts[cur_index][column_index];
         }
 
         if (column_size < 0) {
@@ -161,29 +160,20 @@ Batch ColumnarReader::ReadNext(const Scheme &scheme, size_t &cur_index) {
 
             Compression::BitPackingMetaData meta;
 
-            if (!is_.read(reinterpret_cast<char *>(&meta.bit_width),
-                          sizeof(meta.bit_width))) {
-                throw std::invalid_argument("You give me really bad file");
-            }
+            is_.read(reinterpret_cast<char *>(&meta.bit_width),
+                     sizeof(meta.bit_width));
 
-            if (!is_.read(reinterpret_cast<char *>(&meta.real_size),
-                          sizeof(meta.real_size))) {
-                throw std::invalid_argument("You give me really bad file");
-            }
+            is_.read(reinterpret_cast<char *>(&meta.real_size),
+                     sizeof(meta.real_size));
 
             size_t packed_size;
 
-            if (!is_.read(reinterpret_cast<char *>(&packed_size),
-                          sizeof(packed_size))) {
-                throw std::invalid_argument("You give me really bad file");
-            }
+            is_.read(reinterpret_cast<char *>(&packed_size),
+                     sizeof(packed_size));
 
             std::vector<uint8_t> packed(packed_size);
 
-            if (!is_.read(reinterpret_cast<char *>(packed.data()),
-                          packed_size)) {
-                throw std::invalid_argument("You give me really bad file");
-            }
+            is_.read(reinterpret_cast<char *>(packed.data()), packed_size);
 
             result.GetColumns()[i] = Compression::DecompressIntTypesBitPacking(
                 packed, meta, types[column_index]);
@@ -274,7 +264,7 @@ Batch ColumnarReader::ReadNext(const Scheme &scheme, size_t &cur_index) {
 }
 
 bool ColumnarReader::IsEnd(size_t cur_batch) const {
-    return cur_batch >= data_.chunk_metas.size();
+    return cur_batch >= data_.batch_numbers;
 }
 
 ColumnarReader::~ColumnarReader() { is_.close(); }

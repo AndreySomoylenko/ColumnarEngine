@@ -103,3 +103,5 @@ ColumnTypes Scheme::GetColumnTypeByName(const std::string &name) const {
     }
     return name_to_type.at(name);
 }
+
+size_t Scheme::GetColumnsNumber() const { return column_names.size(); }

@@ -13,15 +13,17 @@ ColumnarWriter::ColumnarWriter(const std::string &filename) {
         throw std::runtime_error("Can't create columnar file");
     }
 
+    batch_count = 0;
     std::streampos meta_offset = os_.tellp();
     std::streamoff meta_off = meta_offset;
     os_.write(reinterpret_cast<char *>(&meta_off), sizeof(meta_off));
 }
 
 void ColumnarWriter::WriteChunk(const Batch &batch) {
-    std::vector<std::streampos> columns_starts;
+    std::vector<std::streampos> columns_batch_starts;
+    ++batch_count;
 
-    columns_starts.emplace_back(os_.tellp());
+    columns_batch_starts.emplace_back(os_.tellp());
     for (auto &x : batch.GetColumns()) {
         auto [data, sz] = x->ToWrite();
 
@@ -67,27 +69,35 @@ void ColumnarWriter::WriteChunk(const Batch &batch) {
         } else {
             os_.write(data, sz);
         }
-        columns_starts.emplace_back(os_.tellp());
+        columns_batch_starts.emplace_back(os_.tellp());
     }
 
-    columns_starts.pop_back();
+    columns_batch_starts.pop_back();
 
-    chunk_starts.emplace_back(os_.tellp());
+    column_starts_.emplace_back(std::move(columns_batch_starts));
 
-    for (size_t i = 0; i < columns_starts.size(); ++i) {
-        std::streamoff off = columns_starts[i];
+    for (size_t i = 0; i < columns_batch_starts.size(); ++i) {
+        std::streamoff off = columns_batch_starts[i];
         os_.write(reinterpret_cast<char *>(&off), sizeof(off));
     }
 }
 
 void ColumnarWriter::Close(const Scheme &scheme) && {
     auto meta_start = os_.tellp();
-    size_t chunk_count = chunk_starts.size();
+    size_t columns_count = scheme.GetColumnsNumber();
 
-    os_.write(reinterpret_cast<char *>(&chunk_count), sizeof(chunk_count));
-    for (size_t i = 0; i < chunk_starts.size(); ++i) {
-        std::streamoff to_write = chunk_starts[i];
-        os_.write(reinterpret_cast<char *>(&to_write), sizeof(to_write));
+    os_.write(reinterpret_cast<const char *>(&batch_count),
+              sizeof(batch_count));
+    os_.write(reinterpret_cast<const char *>(&columns_count),
+              sizeof(columns_count));
+
+    for (auto &x : column_starts_) {
+        for (auto &y : x) {
+            std::streamoff to_write = y;
+
+            os_.write(reinterpret_cast<const char *>(&to_write),
+                      sizeof(to_write));
+        }
     }
 
     auto names = scheme.GetSchemeNames();
