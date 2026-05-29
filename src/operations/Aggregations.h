@@ -182,6 +182,7 @@ void CountDistinct(const std::shared_ptr<Column> &column,
     }
 
     // answer.reserve(column->Size());
+    
 
     for (size_t i = 0; i < column->Size(); ++i) {
         if constexpr (detail::StringValue<T>) {
