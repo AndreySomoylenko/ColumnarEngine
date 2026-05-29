@@ -695,7 +695,7 @@ void ProcessAvgAgg(const std::shared_ptr<Column> &column,
     }
 }
 
-template <typename T, typename SetT = FlatSet<T>>
+template <typename T, typename SetT = HashFlatSet<T>>
 void UpdateDistinct(ResultAggVariant &result,
                     const std::shared_ptr<Column> &column,
                     const EnabledRaws &enabled) {
@@ -726,7 +726,9 @@ void ProcessCountDistinctAgg(const std::shared_ptr<Column> &column,
         return UpdateDistinct<__int128>(results_[i], column, enabled);
     case ColumnTypes::Date:
     case ColumnTypes::Timestamp:
-        return UpdateDistinct<std::chrono::system_clock::time_point>(
+        return UpdateDistinct<
+            std::chrono::system_clock::time_point,
+            HashFlatSet<std::chrono::system_clock::time_point, TimePointHash>>(
             results_[i], column, enabled);
     case ColumnTypes::String:
         return UpdateDistinct<std::string>(results_[i], column, enabled);
@@ -776,21 +778,22 @@ void Aggregation::Process(const Batch &batch) {
 }
 
 size_t CountDistinctResultSize(const ResultAggVariant &result) {
-    if (auto *value = std::get_if<FlatSet<int16_t>>(&result)) {
+    if (auto *value = std::get_if<HashFlatSet<int16_t>>(&result)) {
         return value->size();
-    } else if (auto *value = std::get_if<FlatSet<int32_t>>(&result)) {
+    } else if (auto *value = std::get_if<HashFlatSet<int32_t>>(&result)) {
         return value->size();
-    } else if (auto *value = std::get_if<FlatSet<int64_t>>(&result)) {
+    } else if (auto *value = std::get_if<HashFlatSet<int64_t>>(&result)) {
         return value->size();
-    } else if (auto *value = std::get_if<FlatSet<__int128>>(&result)) {
+    } else if (auto *value = std::get_if<HashFlatSet<__int128>>(&result)) {
         return value->size();
-    } else if (auto *value = std::get_if<FlatSet<double>>(&result)) {
+    } else if (auto *value = std::get_if<HashFlatSet<double>>(&result)) {
         return value->size();
     } else if (auto *value =
-                   std::get_if<FlatSet<std::chrono::system_clock::time_point>>(
+                   std::get_if<HashFlatSet<
+                       std::chrono::system_clock::time_point, TimePointHash>>(
                        &result)) {
         return value->size();
-    } else if (auto *value = std::get_if<FlatSet<std::string>>(&result)) {
+    } else if (auto *value = std::get_if<HashFlatSet<std::string>>(&result)) {
         return value->size();
     }
 
@@ -1230,7 +1233,7 @@ GroupBy::GroupBy(GroupByTask &&task, const Scheme &scheme)
             if (col_type != ColumnTypes::Int64) {
                 throw std::invalid_argument("Only int64 count distinct used in these queries");
             }
-            ans_[i] = std::vector<FlatSet<int64_t>>{};
+            ans_[i] = std::vector<HashFlatSet<int64_t>>{};
             break;
         default:
             throw std::invalid_argument("Unsupported aggregation type");
@@ -1335,7 +1338,7 @@ void UpdateAvgValue(ResultAggVariant &result,
     }
 }
 
-template <typename T, typename SetT = FlatSet<T>>
+template <typename T, typename SetT = HashFlatSet<T>>
 void UpdateDistinctValue(ResultAggVariant &result,
                          const std::shared_ptr<Column> &column,
                          size_t row_index) {
@@ -1350,11 +1353,11 @@ void UpdateDistinctValue(ResultAggVariant &result,
 void UpdateDistinctStringValue(ResultAggVariant &result,
                                const std::shared_ptr<Column> &column,
                                size_t row_index) {
-    if (!std::holds_alternative<FlatSet<std::string>>(result)) {
-        result = FlatSet<std::string>{};
+    if (!std::holds_alternative<HashFlatSet<std::string>>(result)) {
+        result = HashFlatSet<std::string>{};
     }
 
-    auto &current = std::get<FlatSet<std::string>>(result);
+    auto &current = std::get<HashFlatSet<std::string>>(result);
     current.insert(ReadStringValue(column, row_index));
 }
 
@@ -1470,7 +1473,9 @@ void UpdateDistinctForGroupBy(ResultAggVariant &result,
         return UpdateDistinctValue<double>(result, column, row_index);
     case ColumnTypes::Timestamp:
     case ColumnTypes::Date:
-        return UpdateDistinctValue<std::chrono::system_clock::time_point>(
+        return UpdateDistinctValue<
+            std::chrono::system_clock::time_point,
+            HashFlatSet<std::chrono::system_clock::time_point, TimePointHash>>(
             result, column, row_index);
     case ColumnTypes::String:
     case ColumnTypes::Unknown:
@@ -1618,21 +1623,22 @@ void WriteKeyToResult(Batch &result, const std::string &key,
 void WriteCountDistinctToResult(Batch &result, const ResultAggVariant &value,
                                 size_t column_index) {
     size_t distinct_count = 0;
-    if (auto *set = std::get_if<FlatSet<int16_t>>(&value)) {
+    if (auto *set = std::get_if<HashFlatSet<int16_t>>(&value)) {
         distinct_count = set->size();
-    } else if (auto *set = std::get_if<FlatSet<int32_t>>(&value)) {
+    } else if (auto *set = std::get_if<HashFlatSet<int32_t>>(&value)) {
         distinct_count = set->size();
-    } else if (auto *set = std::get_if<FlatSet<int64_t>>(&value)) {
+    } else if (auto *set = std::get_if<HashFlatSet<int64_t>>(&value)) {
         distinct_count = set->size();
-    } else if (auto *set = std::get_if<FlatSet<__int128>>(&value)) {
+    } else if (auto *set = std::get_if<HashFlatSet<__int128>>(&value)) {
         distinct_count = set->size();
-    } else if (auto *set = std::get_if<FlatSet<double>>(&value)) {
+    } else if (auto *set = std::get_if<HashFlatSet<double>>(&value)) {
         distinct_count = set->size();
     } else if (auto *set =
-                   std::get_if<FlatSet<std::chrono::system_clock::time_point>>(
+                   std::get_if<HashFlatSet<
+                       std::chrono::system_clock::time_point, TimePointHash>>(
                        &value)) {
         distinct_count = set->size();
-    } else if (auto *set = std::get_if<FlatSet<std::string>>(&value)) {
+    } else if (auto *set = std::get_if<HashFlatSet<std::string>>(&value)) {
         distinct_count = set->size();
     } else {
         throw std::invalid_argument("Unexpected count distinct state");

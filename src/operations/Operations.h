@@ -71,9 +71,10 @@ struct TimePointHash {
 using ResultAggVariant = std::variant<
     std::monostate, __int128, int16_t, int32_t, int64_t, uint64_t, std::string,
     double, std::chrono::system_clock::time_point, std::pair<__int128, size_t>,
-    std::pair<double, size_t>, FlatSet<__int128>, FlatSet<double>,
-    FlatSet<std::chrono::system_clock::time_point>, FlatSet<int16_t>,
-    FlatSet<int32_t>, FlatSet<int64_t>, FlatSet<std::string>>;
+    std::pair<double, size_t>, HashFlatSet<__int128>, HashFlatSet<double>,
+    HashFlatSet<std::chrono::system_clock::time_point, TimePointHash>,
+    HashFlatSet<int16_t>, HashFlatSet<int32_t>, HashFlatSet<int64_t>,
+    HashFlatSet<std::string>>;
 
 class Aggregation : public BlockingOperation {
   public:
@@ -214,7 +215,7 @@ GroupByTask MakeGroupByTask(std::vector<size_t> &&group_column_indices,
 
 using ResultAggGroupByVariant = std::variant<
     std::vector<uint64_t>, std::vector<__int128>, std::vector<std::string>,
-    std::vector<std::pair<__int128, size_t>>, std::vector<FlatSet<int64_t>>,
+    std::vector<std::pair<__int128, size_t>>, std::vector<HashFlatSet<int64_t>>,
     std::vector<ResultAggVariant>>;
 
 class GroupBy : public BlockingOperation {
