@@ -1221,79 +1221,32 @@ GroupBy::GroupBy(GroupByTask &&task, const Scheme &scheme)
             break;
         case AggType::Sum:
             if (col_type == ColumnTypes::Double) {
-                ans_[i] = std::vector<double>{};
-            } else {
-                ans_[i] = std::vector<__int128>{};
+                throw std::invalid_argument("Double sum not used in these queries");
             }
+            ans_[i] = std::vector<__int128>{};
             break;
         case AggType::Avg:
             if (col_type == ColumnTypes::Double) {
-                ans_[i] = std::vector<std::pair<double, size_t>>{};
-            } else {
-                ans_[i] = std::vector<std::pair<__int128, size_t>>{};
+                throw std::invalid_argument("Double avg not used in these queries");
             }
+            ans_[i] = std::vector<std::pair<__int128, size_t>>{};
             break;
         case AggType::Min:
         case AggType::Max:
             switch (col_type) {
-            case ColumnTypes::Int16:
-                ans_[i] = std::vector<int16_t>{};
-                break;
-            case ColumnTypes::Int32:
-                ans_[i] = std::vector<int32_t>{};
-                break;
-            case ColumnTypes::Int64:
-                ans_[i] = std::vector<int64_t>{};
-                break;
-            case ColumnTypes::Int128:
-                ans_[i] = std::vector<__int128>{};
-                break;
-            case ColumnTypes::Double:
-                ans_[i] = std::vector<double>{};
-                break;
             case ColumnTypes::String:
             case ColumnTypes::Unknown:
                 ans_[i] = std::vector<std::string>{};
                 break;
-            case ColumnTypes::Timestamp:
-            case ColumnTypes::Date:
-                ans_[i] = std::vector<std::chrono::system_clock::time_point>{};
-                break;
             default:
-                throw std::invalid_argument(
-                    "Unsupported column type for min/max");
+                throw std::invalid_argument("Unsupported column type for min/max");
             }
             break;
         case AggType::CountDistinct:
-            switch (col_type) {
-            case ColumnTypes::Int16:
-                ans_[i] = std::vector<std::unordered_set<int16_t>>{};
-                break;
-            case ColumnTypes::Int32:
-                ans_[i] = std::vector<std::unordered_set<int32_t>>{};
-                break;
-            case ColumnTypes::Int64:
-                ans_[i] = std::vector<std::unordered_set<int64_t>>{};
-                break;
-            case ColumnTypes::Int128:
-                ans_[i] = std::vector<std::unordered_set<__int128>>{};
-                break;
-            case ColumnTypes::Double:
-                ans_[i] = std::vector<std::unordered_set<double>>{};
-                break;
-            case ColumnTypes::Timestamp:
-            case ColumnTypes::Date:
-                ans_[i] = std::vector<std::unordered_set<
-                    std::chrono::system_clock::time_point, TimePointHash>>{};
-                break;
-            case ColumnTypes::String:
-            case ColumnTypes::Unknown:
-                ans_[i] = std::vector<std::unordered_set<std::string>>{};
-                break;
-            default:
-                throw std::invalid_argument(
-                    "Unsupported column type for count distinct");
+            if (col_type != ColumnTypes::Int64) {
+                throw std::invalid_argument("Only int64 count distinct used in these queries");
             }
+            ans_[i] = std::vector<std::unordered_set<int64_t>>{};
             break;
         default:
             throw std::invalid_argument("Unsupported aggregation type");
