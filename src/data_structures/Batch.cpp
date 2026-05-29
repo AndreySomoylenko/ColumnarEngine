@@ -141,25 +141,22 @@ void Batch::RemoveColumn(size_t index) {
     scheme_.RemoveColumn(index);
 }
 
-void Batch::SetEnabledRaws(
-    std::optional<std::unordered_set<size_t>> &&enabled) {
+void Batch::SetEnabledRaws(EnabledRaws &&enabled) {
     enabled_ = std::move(enabled);
 }
 
-const std::optional<std::unordered_set<size_t>> &Batch::GetEnabledRaws() const {
+const EnabledRaws &Batch::GetEnabledRaws() const {
     return enabled_;
 }
 
-std::optional<std::unordered_set<size_t>> &Batch::GetEnabledRaws() {
-    return enabled_;
-}
+EnabledRaws &Batch::GetEnabledRaws() { return enabled_; }
 
 bool Batch::IsRowEnabled(size_t index) const {
     if (index >= VerticalSize()) {
         throw std::out_of_range("Incorrect row index");
     }
 
-    return !enabled_.has_value() || enabled_->contains(index);
+    return !enabled_.has_value() || enabled_->find(index) != enabled_->end();
 }
 
 const std::shared_ptr<Column> &Batch::GetColumn(const size_t index) const {

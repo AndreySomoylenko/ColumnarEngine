@@ -1,9 +1,8 @@
 #pragma once
 
 #include "data_structures/Column.h"
+#include "data_structures/Containers.h"
 #include "data_structures/Scheme.h"
-#include <optional>
-#include <unordered_set>
 
 using Row = std::vector<std::string>;
 
@@ -31,9 +30,9 @@ class Batch {
     void PushColumnVector(const std::vector<std::shared_ptr<Column>> &row);
     void PushRowFrom(const Batch &source, size_t row);
 
-    void SetEnabledRaws(std::optional<std::unordered_set<size_t>> &&enabled);
-    const std::optional<std::unordered_set<size_t>> &GetEnabledRaws() const;
-    std::optional<std::unordered_set<size_t>> &GetEnabledRaws();
+    void SetEnabledRaws(EnabledRaws &&enabled);
+    const EnabledRaws &GetEnabledRaws() const;
+    EnabledRaws &GetEnabledRaws();
     bool IsRowEnabled(size_t index) const;
 
     void Clear();
@@ -47,7 +46,7 @@ class Batch {
     static constexpr size_t kMaxRowsPerBatch = 1 << 14;
     static constexpr size_t kPredictedSize = 300000;
 
-    std::optional<std::unordered_set<size_t>> enabled_;
+    EnabledRaws enabled_;
 
     Scheme scheme_;
 };

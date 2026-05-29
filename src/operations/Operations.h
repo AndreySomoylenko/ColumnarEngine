@@ -2,15 +2,14 @@
 
 #include "data_structures/Batch.h"
 #include "data_structures/Column.h"
+#include "data_structures/Containers.h"
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <set>
 #include <string>
 #include <string_view>
-#include <unordered_map>
-#include <unordered_set>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -72,11 +71,9 @@ struct TimePointHash {
 using ResultAggVariant = std::variant<
     std::monostate, __int128, int16_t, int32_t, int64_t, uint64_t, std::string,
     double, std::chrono::system_clock::time_point, std::pair<__int128, size_t>,
-    std::pair<double, size_t>, std::unordered_set<__int128>,
-    std::unordered_set<double>,
-    std::unordered_set<std::chrono::system_clock::time_point, TimePointHash>,
-    std::unordered_set<int16_t>, std::unordered_set<int32_t>,
-    std::unordered_set<int64_t>, std::unordered_set<std::string>>;
+    std::pair<double, size_t>, FlatSet<__int128>, FlatSet<double>,
+    FlatSet<std::chrono::system_clock::time_point>, FlatSet<int16_t>,
+    FlatSet<int32_t>, FlatSet<int64_t>, FlatSet<std::string>>;
 
 class Aggregation : public BlockingOperation {
   public:
@@ -107,8 +104,7 @@ FilterTask MakeInt64LessFilter(size_t column_index, int64_t bound);
 FilterTask MakeInt64LessOrEqualFilter(size_t column_index, int64_t bound);
 FilterTask MakeInt64GreaterFilter(size_t column_index, int64_t bound);
 FilterTask MakeInt64GreaterOrEqualFilter(size_t column_index, int64_t bound);
-FilterTask MakeInt64InFilter(size_t column_index,
-                             std::unordered_set<int64_t> values);
+FilterTask MakeInt64InFilter(size_t column_index, FlatSet<int64_t> values);
 FilterTask MakeStringFilter(size_t column_index,
                             std::function<bool(std::string_view)> condition);
 FilterTask MakeStringEqualFilter(size_t column_index, std::string expected);
@@ -180,7 +176,7 @@ class TopK : public BlockingOperation {
 
   private:
     std::vector<SortKey> sort_keys_;
-    std::multiset<OwnedRow, CompareForTopK> ans_;
+    FlatMultiSet<OwnedRow, CompareForTopK> ans_;
     size_t k_;
 
     Scheme result_scheme_;
@@ -217,12 +213,9 @@ GroupByTask MakeGroupByTask(std::vector<size_t> &&group_column_indices,
                             AggType agg_type, size_t agg_column_index);
 
 using ResultAggGroupByVariant = std::variant<
-    std::vector<uint64_t>,
-    std::vector<__int128>,
-    std::vector<std::string>,
-    std::vector<std::pair<__int128, size_t>>,
-    std::vector<std::unordered_set<int64_t>> 
->;
+    std::vector<uint64_t>, std::vector<__int128>, std::vector<std::string>,
+    std::vector<std::pair<__int128, size_t>>, std::vector<FlatSet<int64_t>>,
+    std::vector<ResultAggVariant>>;
 
 class GroupBy : public BlockingOperation {
   public:
@@ -231,11 +224,10 @@ class GroupBy : public BlockingOperation {
     std::vector<Batch> Finalize() && override;
 
   private:
-    std::unordered_map<std::string, size_t> result_;
+    HashFlatMap<std::string, size_t> result_;
     std::vector<ResultAggGroupByVariant> ans_;
     GroupByTask task_;
     Scheme scheme_;
-    size_t c_ = 0;
 };
 
 GroupBy MakeGroupBy(GroupByTask &&task, const Scheme &scheme);

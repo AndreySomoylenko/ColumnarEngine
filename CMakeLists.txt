@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.20)
 
 cmake_policy(SET CMP0135 NEW)
+if (POLICY CMP0167)
+    cmake_policy(SET CMP0167 NEW)
+endif()
 
 project(ColumnarEngine
     VERSION 0.1
@@ -16,6 +19,13 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+find_package(Boost REQUIRED)
+if (TARGET Boost::headers)
+    set(COLUMNAR_BOOST_TARGET Boost::headers)
+else()
+    set(COLUMNAR_BOOST_TARGET Boost::boost)
+endif()
 
 include(CheckIPOSupported)
 check_ipo_supported(RESULT ipo_supported OUTPUT ipo_error)

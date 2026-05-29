@@ -1,14 +1,13 @@
 #include <cstring>
-#include <map>
 #include <memory>
 #include <stdexcept>
 #include <string>
-#include <unordered_set>
 
 #include <gtest/gtest.h>
 
 #include "data_structures/Batch.h"
 #include "data_structures/Column.h"
+#include "data_structures/Containers.h"
 #include "operations/Aggregations.h"
 #include "operations/Operations.h"
 
@@ -44,8 +43,8 @@ std::vector<Row> ReadRows(std::vector<Batch> batches) {
     return rows;
 }
 
-std::map<std::string, Row> RowsByFirstColumn(std::vector<Batch> batches) {
-    std::map<std::string, Row> rows;
+FlatMap<std::string, Row> RowsByFirstColumn(std::vector<Batch> batches) {
+    FlatMap<std::string, Row> rows;
     for (const Row &row : ReadRows(std::move(batches))) {
         rows[row[0]] = row;
     }
@@ -78,8 +77,8 @@ TEST(AggregationTest, CountDistinctOnSupportedTypes) {
     auto int_column = MakeIntColumn({"1", "2", "2", "3", "1"});
     auto str_column = MakeStringColumn({"foo", "bar", "foo", ""});
 
-    std::unordered_set<int64_t> int_values;
-    std::unordered_set<std::string> str_values;
+    FlatSet<int64_t> int_values;
+    FlatSet<std::string> str_values;
 
     agg::CountDistinct(int_column, int_values);
     agg::CountDistinct(str_column, str_values);
@@ -103,7 +102,7 @@ TEST(AggregationTest, EmptyColumnThrowsForMinMaxAndAvg) {
 
 TEST(AggregationTest, AvgThrowsForEmptyEnabledSelection) {
     auto column = MakeIntColumn({"1", "2"});
-    EnabledRaws selected = std::unordered_set<size_t>{};
+    EnabledRaws selected = FlatSet<size_t>{};
 
     EXPECT_THROW((void)agg::Avg<__int128>(column, selected),
                  std::invalid_argument);
@@ -112,7 +111,7 @@ TEST(AggregationTest, AvgThrowsForEmptyEnabledSelection) {
 TEST(AggregationTest, MinMaxThrowForEmptyEnabledSelection) {
     auto int_column = MakeIntColumn({"1", "2"});
     auto str_column = MakeStringColumn({"a", "b"});
-    EnabledRaws selected = std::unordered_set<size_t>{};
+    EnabledRaws selected = FlatSet<size_t>{};
 
     EXPECT_THROW((void)agg::Min<int64_t>(int_column, selected),
                  std::invalid_argument);
@@ -432,16 +431,16 @@ TEST(GroupByTest, CountsRowsByStringKey) {
     batch.AddRow({"mail", "2"});
     batch.AddRow({"search", "3"});
 
-    GroupBy group_by({{AggType::Count}, {0}}, scheme);
+    GroupBy group_by(MakeGroupByTask({0}, {MakeGroupCount()}), scheme);
     group_by.Process(batch);
 
-    std::map<std::string, std::string> actual;
+    FlatMap<std::string, std::string> actual;
     for (const Row &row : ReadRows(std::move(group_by).Finalize())) {
         actual[row[0]] = row[1];
     }
 
-    EXPECT_EQ(actual, (std::map<std::string, std::string>{{"mail", "1"},
-                                                          {"search", "2"}}));
+    EXPECT_EQ(actual, (FlatMap<std::string, std::string>{{"mail", "1"},
+                                                         {"search", "2"}}));
 }
 
 TEST(GroupByTest, SumsNumericColumnByIntKey) {
@@ -454,16 +453,16 @@ TEST(GroupByTest, SumsNumericColumnByIntKey) {
     batch.AddRow({"2", "7"});
     batch.AddRow({"1", "5"});
 
-    GroupBy group_by({{AggType::Sum}, {0}, 1}, scheme);
+    GroupBy group_by(MakeGroupByTask({0}, {MakeGroupSum(1)}), scheme);
     group_by.Process(batch);
 
-    std::map<std::string, std::string> actual;
+    FlatMap<std::string, std::string> actual;
     for (const Row &row : ReadRows(std::move(group_by).Finalize())) {
         actual[row[0]] = row[1];
     }
 
     EXPECT_EQ(actual,
-              (std::map<std::string, std::string>{{"1", "15"}, {"2", "7"}}));
+              (FlatMap<std::string, std::string>{{"1", "15"}, {"2", "7"}}));
 }
 
 TEST(GroupByTest, ComputesMultipleAggregatesPerGroup) {
@@ -479,12 +478,11 @@ TEST(GroupByTest, ComputesMultipleAggregatesPerGroup) {
     batch.AddRow({"1", "1", "200", "9"});
     batch.AddRow({"2", "8", "400", "7"});
 
-    GroupBy group_by(
-        {{AggType::Sum, AggType::Count, AggType::Avg, AggType::CountDistinct},
-         {0},
-         0,
-         {1, 0, 2, 3}},
-        scheme);
+    GroupBy group_by(MakeGroupByTask({0}, {MakeGroupSum(1),
+                                           MakeGroupCount(0),
+                                           MakeGroupAvg(2),
+                                           MakeGroupCountDistinct(3)}),
+                     scheme);
     group_by.Process(batch);
 
     auto rows = RowsByFirstColumn(std::move(group_by).Finalize());
@@ -505,10 +503,10 @@ TEST(GroupByTest, AveragesAndKeepsDistinctStringKeyBoundaries) {
     batch.AddRow({"a", "bc", "20"});
     batch.AddRow({"ab", "c", "30"});
 
-    GroupBy group_by({{AggType::Avg}, {0, 1}, 2}, scheme);
+    GroupBy group_by(MakeGroupByTask({0, 1}, {MakeGroupAvg(2)}), scheme);
     group_by.Process(batch);
 
-    std::map<std::pair<std::string, std::string>, std::string> actual;
+    FlatMap<std::pair<std::string, std::string>, std::string> actual;
     for (const Row &row : ReadRows(std::move(group_by).Finalize())) {
         actual[{row[0], row[1]}] = row[2];
     }
@@ -530,16 +528,17 @@ TEST(GroupByTest, CountsDistinctValuesPerGroup) {
     batch.AddRow({"1", "20"});
     batch.AddRow({"2", "10"});
 
-    GroupBy group_by({{AggType::CountDistinct}, {0}, 1}, scheme);
+    GroupBy group_by(MakeGroupByTask({0}, {MakeGroupCountDistinct(1)}),
+                     scheme);
     group_by.Process(batch);
 
-    std::map<std::string, std::string> actual;
+    FlatMap<std::string, std::string> actual;
     for (const Row &row : ReadRows(std::move(group_by).Finalize())) {
         actual[row[0]] = row[1];
     }
 
     EXPECT_EQ(actual,
-              (std::map<std::string, std::string>{{"1", "2"}, {"2", "1"}}));
+              (FlatMap<std::string, std::string>{{"1", "2"}, {"2", "1"}}));
 }
 
 TEST(GroupByTest, ComputesMinAndMaxForStringAndNumericValues) {
@@ -553,14 +552,14 @@ TEST(GroupByTest, ComputesMinAndMaxForStringAndNumericValues) {
     batch.AddRow({"1", "alpha", "30"});
     batch.AddRow({"2", "beta", "20"});
 
-    GroupBy min_url({{AggType::Min}, {0}, 1}, scheme);
+    GroupBy min_url(MakeGroupByTask({0}, {MakeGroupMin(1)}), scheme);
     min_url.Process(batch);
     auto min_rows = RowsByFirstColumn(std::move(min_url).Finalize());
 
     EXPECT_EQ(min_rows["1"], (Row{"1", "alpha"}));
     EXPECT_EQ(min_rows["2"], (Row{"2", "beta"}));
 
-    GroupBy max_score({{AggType::Max}, {0}, 2}, scheme);
+    GroupBy max_score(MakeGroupByTask({0}, {MakeGroupMax(2)}), scheme);
     max_score.Process(batch);
     auto max_rows = RowsByFirstColumn(std::move(max_score).Finalize());
 
@@ -588,7 +587,7 @@ TEST(GroupByTest, RespectsEnabledRowsAcrossMultipleBatches) {
     };
 
     Filter filter({FilterTask{0, keep_region_one}});
-    GroupBy group_by({{AggType::Sum}, {0}, 1}, scheme);
+    GroupBy group_by(MakeGroupByTask({0}, {MakeGroupSum(1)}), scheme);
 
     filter.Execute(first);
     group_by.Process(first);

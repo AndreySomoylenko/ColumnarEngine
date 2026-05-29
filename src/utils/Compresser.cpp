@@ -1,6 +1,7 @@
 #include "utils/Compresser.h"
 #include "data_structures/ByteVector.h"
 #include "data_structures/Column.h"
+#include "data_structures/Containers.h"
 #include <cstdint>
 #include <memory>
 #include <stdexcept>
@@ -17,7 +18,7 @@ Compression::CompressDictFromString(
     meta.real_size = column->Size();
 
     int c = 0;
-    std::unordered_map<std::string_view, size_t> indices;
+    HashFlatMap<std::string_view, size_t> indices;
     for (int i = 0; i < column->Size(); ++i) {
         const auto &[value, sz] = column->Get(i);
         if (!indices.count(std::string_view(value, sz))) {

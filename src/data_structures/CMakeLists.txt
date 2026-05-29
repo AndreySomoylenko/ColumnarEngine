@@ -14,3 +14,8 @@ target_include_directories(columnar_data_structures
 target_compile_features(columnar_data_structures
     PUBLIC cxx_std_20
 )
+
+target_link_libraries(columnar_data_structures
+    PUBLIC
+        ${COLUMNAR_BOOST_TARGET}
+)

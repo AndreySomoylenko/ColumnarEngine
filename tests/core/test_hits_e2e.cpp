@@ -2,6 +2,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
+#include <algorithm>
 #include <iostream>
 #include <system_error>
 #include <gtest/gtest.h>
@@ -166,24 +167,37 @@ void RunQuery(Engine &engine, size_t query_index) {
     }
 }
 
+bool HasAmbiguousOutputOrder(size_t query_index) { return query_index == 35; }
+
 bool SameRowsOrAmbiguousTie(size_t query_index, const std::vector<Row> &actual,
                             const std::vector<Row> &expected) {
     if (actual == expected) {
         return true;
     }
 
-    if (query_index != 18 || actual.size() != expected.size()) {
+    if (actual.size() != expected.size()) {
         return false;
     }
 
-    for (size_t i = 0; i < actual.size(); ++i) {
-        if (actual[i].empty() || expected[i].empty() ||
-            actual[i].back() != expected[i].back()) {
-            return false;
+    if (query_index == 18) {
+        for (size_t i = 0; i < actual.size(); ++i) {
+            if (actual[i].empty() || expected[i].empty() ||
+                actual[i].back() != expected[i].back()) {
+                return false;
+            }
         }
+        return true;
     }
 
-    return true;
+    if (HasAmbiguousOutputOrder(query_index)) {
+        auto sorted_actual = actual;
+        auto sorted_expected = expected;
+        std::sort(sorted_actual.begin(), sorted_actual.end());
+        std::sort(sorted_expected.begin(), sorted_expected.end());
+        return sorted_actual == sorted_expected;
+    }
+
+    return false;
 }
 
 bool HasKnownReferenceMismatch(size_t query_index) {

@@ -1,10 +1,10 @@
 #pragma once
 
+#include "data_structures/Containers.h"
 #include "data_structures/Scheme.h"
 #include "utils/HitsColumns.h"
 
 #include <cstddef>
-#include <unordered_map>
 
 class ProjectionBuilder {
   public:
@@ -17,5 +17,5 @@ class ProjectionBuilder {
   private:
     const Scheme &source_scheme_;
     Scheme read_scheme_;
-    std::unordered_map<size_t, size_t> source_to_local_;
+    FlatMap<size_t, size_t> source_to_local_;
 };

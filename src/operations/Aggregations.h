@@ -1,6 +1,7 @@
 #pragma once
 
 #include "data_structures/Column.h"
+#include "data_structures/Containers.h"
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
@@ -10,9 +11,6 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
-#include <unordered_set>
-
-using EnabledRaws = std::optional<std::unordered_set<size_t>>;
 
 namespace agg {
 
@@ -162,10 +160,9 @@ double Avg(const std::shared_ptr<Column> &column,
     return static_cast<double>(sum) / static_cast<double>(count);
 }
 
-template <typename T, typename Hash, typename KeyEqual, typename Allocator>
-void CountDistinct(const std::shared_ptr<Column> &column,
-                   std::unordered_set<T, Hash, KeyEqual, Allocator> &answer,
-                   const EnabledRaws &selected = std::nullopt) {
+template <typename T, typename SetT>
+void CountDistinctAs(const std::shared_ptr<Column> &column, SetT &answer,
+                     const EnabledRaws &selected = std::nullopt) {
 
     if (selected.has_value()) {
 
@@ -181,9 +178,6 @@ void CountDistinct(const std::shared_ptr<Column> &column,
         return;
     }
 
-    // answer.reserve(column->Size());
-    
-
     for (size_t i = 0; i < column->Size(); ++i) {
         if constexpr (detail::StringValue<T>) {
             std::string_view value = detail::ReadValue<T>(column, i);
@@ -192,6 +186,12 @@ void CountDistinct(const std::shared_ptr<Column> &column,
             answer.insert(detail::ReadValue<T>(column, i));
         }
     }
+}
+
+template <typename SetT>
+void CountDistinct(const std::shared_ptr<Column> &column, SetT &answer,
+                   const EnabledRaws &selected = std::nullopt) {
+    CountDistinctAs<typename SetT::value_type>(column, answer, selected);
 }
 
 inline uint64_t Count(const std::shared_ptr<Column> &column,

@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cctype>
 #include <chrono>
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -15,11 +16,8 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
-#include <unordered_set>
 #include <variant>
 #include <vector>
-
-using EnabledRaws = std::optional<std::unordered_set<size_t>>;
 
 namespace {
 
@@ -697,7 +695,7 @@ void ProcessAvgAgg(const std::shared_ptr<Column> &column,
     }
 }
 
-template <typename T, typename SetT = std::unordered_set<T>>
+template <typename T, typename SetT = FlatSet<T>>
 void UpdateDistinct(ResultAggVariant &result,
                     const std::shared_ptr<Column> &column,
                     const EnabledRaws &enabled) {
@@ -707,7 +705,7 @@ void UpdateDistinct(ResultAggVariant &result,
     }
     auto &current = std::get<SetT>(result);
 
-    agg::CountDistinct(column, current, enabled);
+    agg::CountDistinctAs<T>(column, current, enabled);
 }
 
 void ProcessCountDistinctAgg(const std::shared_ptr<Column> &column,
@@ -728,10 +726,8 @@ void ProcessCountDistinctAgg(const std::shared_ptr<Column> &column,
         return UpdateDistinct<__int128>(results_[i], column, enabled);
     case ColumnTypes::Date:
     case ColumnTypes::Timestamp:
-        return UpdateDistinct<
-            std::chrono::system_clock::time_point,
-            std::unordered_set<std::chrono::system_clock::time_point,
-                               TimePointHash>>(results_[i], column, enabled);
+        return UpdateDistinct<std::chrono::system_clock::time_point>(
+            results_[i], column, enabled);
     case ColumnTypes::String:
         return UpdateDistinct<std::string>(results_[i], column, enabled);
     default:
@@ -780,25 +776,21 @@ void Aggregation::Process(const Batch &batch) {
 }
 
 size_t CountDistinctResultSize(const ResultAggVariant &result) {
-    if (auto *value = std::get_if<std::unordered_set<int16_t>>(&result)) {
+    if (auto *value = std::get_if<FlatSet<int16_t>>(&result)) {
+        return value->size();
+    } else if (auto *value = std::get_if<FlatSet<int32_t>>(&result)) {
+        return value->size();
+    } else if (auto *value = std::get_if<FlatSet<int64_t>>(&result)) {
+        return value->size();
+    } else if (auto *value = std::get_if<FlatSet<__int128>>(&result)) {
+        return value->size();
+    } else if (auto *value = std::get_if<FlatSet<double>>(&result)) {
         return value->size();
     } else if (auto *value =
-                   std::get_if<std::unordered_set<int32_t>>(&result)) {
+                   std::get_if<FlatSet<std::chrono::system_clock::time_point>>(
+                       &result)) {
         return value->size();
-    } else if (auto *value =
-                   std::get_if<std::unordered_set<int64_t>>(&result)) {
-        return value->size();
-    } else if (auto *value =
-                   std::get_if<std::unordered_set<__int128>>(&result)) {
-        return value->size();
-    } else if (auto *value = std::get_if<std::unordered_set<double>>(&result)) {
-        return value->size();
-    } else if (auto *value = std::get_if<std::unordered_set<
-                   std::chrono::system_clock::time_point, TimePointHash>>(
-                   &result)) {
-        return value->size();
-    } else if (auto *value =
-                   std::get_if<std::unordered_set<std::string>>(&result)) {
+    } else if (auto *value = std::get_if<FlatSet<std::string>>(&result)) {
         return value->size();
     }
 
@@ -931,11 +923,10 @@ FilterTask MakeInt64GreaterOrEqualFilter(size_t column_index, int64_t bound) {
                            [bound](int64_t value) { return value >= bound; });
 }
 
-FilterTask MakeInt64InFilter(size_t column_index,
-                             std::unordered_set<int64_t> values) {
+FilterTask MakeInt64InFilter(size_t column_index, FlatSet<int64_t> values) {
     return MakeInt64Filter(column_index,
                            [values = std::move(values)](int64_t value) {
-                               return values.contains(value);
+                               return values.find(value) != values.end();
                            });
 }
 
@@ -1034,7 +1025,7 @@ void Filter::Execute(Batch &batch) {
     auto &enabled = batch.GetEnabledRaws();
     for (auto &task : conditions_) {
         if (!enabled.has_value()) {
-            enabled = std::unordered_set<size_t>{};
+            enabled = FlatSet<size_t>{};
             enabled->reserve(batch.VerticalSize());
             for (size_t ind = 0; ind < batch.VerticalSize(); ++ind) {
                 if (CheckFilterCondition(batch, task, ind)) {
@@ -1233,20 +1224,13 @@ GroupBy::GroupBy(GroupByTask &&task, const Scheme &scheme)
             break;
         case AggType::Min:
         case AggType::Max:
-            switch (col_type) {
-            case ColumnTypes::String:
-            case ColumnTypes::Unknown:
-                ans_[i] = std::vector<std::string>{};
-                break;
-            default:
-                throw std::invalid_argument("Unsupported column type for min/max");
-            }
+            ans_[i] = std::vector<ResultAggVariant>{};
             break;
         case AggType::CountDistinct:
             if (col_type != ColumnTypes::Int64) {
                 throw std::invalid_argument("Only int64 count distinct used in these queries");
             }
-            ans_[i] = std::vector<std::unordered_set<int64_t>>{};
+            ans_[i] = std::vector<FlatSet<int64_t>>{};
             break;
         default:
             throw std::invalid_argument("Unsupported aggregation type");
@@ -1351,7 +1335,7 @@ void UpdateAvgValue(ResultAggVariant &result,
     }
 }
 
-template <typename T, typename SetT = std::unordered_set<T>>
+template <typename T, typename SetT = FlatSet<T>>
 void UpdateDistinctValue(ResultAggVariant &result,
                          const std::shared_ptr<Column> &column,
                          size_t row_index) {
@@ -1366,11 +1350,11 @@ void UpdateDistinctValue(ResultAggVariant &result,
 void UpdateDistinctStringValue(ResultAggVariant &result,
                                const std::shared_ptr<Column> &column,
                                size_t row_index) {
-    if (!std::holds_alternative<std::unordered_set<std::string>>(result)) {
-        result = std::unordered_set<std::string>{};
+    if (!std::holds_alternative<FlatSet<std::string>>(result)) {
+        result = FlatSet<std::string>{};
     }
 
-    auto &current = std::get<std::unordered_set<std::string>>(result);
+    auto &current = std::get<FlatSet<std::string>>(result);
     current.insert(ReadStringValue(column, row_index));
 }
 
@@ -1486,10 +1470,8 @@ void UpdateDistinctForGroupBy(ResultAggVariant &result,
         return UpdateDistinctValue<double>(result, column, row_index);
     case ColumnTypes::Timestamp:
     case ColumnTypes::Date:
-        return UpdateDistinctValue<
-            std::chrono::system_clock::time_point,
-            std::unordered_set<std::chrono::system_clock::time_point,
-                               TimePointHash>>(result, column, row_index);
+        return UpdateDistinctValue<std::chrono::system_clock::time_point>(
+            result, column, row_index);
     case ColumnTypes::String:
     case ColumnTypes::Unknown:
         return UpdateDistinctStringValue(result, column, row_index);
@@ -1540,17 +1522,16 @@ void UpdateSingleAggValue(size_t row_index, ResultAggVariant &current,
 }
 
 void UpdateKeyValue(size_t row_index,
-                    std::unordered_map<std::string, size_t> &result,
+                    HashFlatMap<std::string, size_t> &result,
                     const GroupByTask &task, const Batch &batch,
-                    std::vector<ResultAggGroupByVariant> &ans, size_t &c) {
+                    std::vector<ResultAggGroupByVariant> &ans) {
     auto key = BuildKey(batch, task.column_indices, row_index);
 
-    size_t group_id;
-
-    if (!result.count(key)) {
-        group_id = c++;
-        result[key] = group_id;
-
+    const size_t new_group_id = result.size();
+    auto [group_it, inserted] =
+        result.try_emplace(std::move(key), new_group_id);
+    const size_t group_id = group_it->second;
+    if (inserted) {
         for (auto &agg_vec_variant : ans) {
             std::visit(
                 [&](auto &vec) {
@@ -1559,8 +1540,6 @@ void UpdateKeyValue(size_t row_index,
                 },
                 agg_vec_variant);
         }
-    } else {
-        group_id = result[key];
     }
 
     for (size_t i = 0; i < task.types_.size(); ++i) {
@@ -1570,7 +1549,11 @@ void UpdateKeyValue(size_t row_index,
                 ResultAggVariant tmp = std::move(vec[group_id]);
                 UpdateSingleAggValue(row_index, tmp, task.types_[i],
                                      GetAggColumnIndex(task, i), batch);
-                vec[group_id] = std::get<T>(std::move(tmp));
+                if constexpr (std::same_as<T, ResultAggVariant>) {
+                    vec[group_id] = std::move(tmp);
+                } else {
+                    vec[group_id] = std::get<T>(std::move(tmp));
+                }
             },
             ans[i]);
     }
@@ -1596,13 +1579,13 @@ void GroupBy::Process(const Batch &batch) {
     auto enabled = batch.GetEnabledRaws();
     if (enabled.has_value()) {
         for (auto &ind : enabled.value()) {
-            UpdateKeyValue(ind, result_, task_, batch, ans_, c_);
+            UpdateKeyValue(ind, result_, task_, batch, ans_);
         }
         return;
     }
 
     for (size_t i = 0; i < batch.VerticalSize(); ++i) {
-        UpdateKeyValue(i, result_, task_, batch, ans_, c_);
+        UpdateKeyValue(i, result_, task_, batch, ans_);
     }
 }
 
@@ -1635,22 +1618,21 @@ void WriteKeyToResult(Batch &result, const std::string &key,
 void WriteCountDistinctToResult(Batch &result, const ResultAggVariant &value,
                                 size_t column_index) {
     size_t distinct_count = 0;
-    if (auto *set = std::get_if<std::unordered_set<int16_t>>(&value)) {
+    if (auto *set = std::get_if<FlatSet<int16_t>>(&value)) {
         distinct_count = set->size();
-    } else if (auto *set = std::get_if<std::unordered_set<int32_t>>(&value)) {
+    } else if (auto *set = std::get_if<FlatSet<int32_t>>(&value)) {
         distinct_count = set->size();
-    } else if (auto *set = std::get_if<std::unordered_set<int64_t>>(&value)) {
+    } else if (auto *set = std::get_if<FlatSet<int64_t>>(&value)) {
         distinct_count = set->size();
-    } else if (auto *set = std::get_if<std::unordered_set<__int128>>(&value)) {
+    } else if (auto *set = std::get_if<FlatSet<__int128>>(&value)) {
         distinct_count = set->size();
-    } else if (auto *set = std::get_if<std::unordered_set<double>>(&value)) {
-        distinct_count = set->size();
-    } else if (auto *set = std::get_if<std::unordered_set<
-                   std::chrono::system_clock::time_point, TimePointHash>>(
-                   &value)) {
+    } else if (auto *set = std::get_if<FlatSet<double>>(&value)) {
         distinct_count = set->size();
     } else if (auto *set =
-                   std::get_if<std::unordered_set<std::string>>(&value)) {
+                   std::get_if<FlatSet<std::chrono::system_clock::time_point>>(
+                       &value)) {
+        distinct_count = set->size();
+    } else if (auto *set = std::get_if<FlatSet<std::string>>(&value)) {
         distinct_count = set->size();
     } else {
         throw std::invalid_argument("Unexpected count distinct state");
@@ -1768,35 +1750,29 @@ std::vector<Batch> GroupBy::Finalize() && {
         return result;
     }
 
-    size_t num_groups =
-        std::visit([](auto &vec) { return vec.size(); }, ans_[0]);
-
-    std::vector<Batch> groups;
-    groups.reserve(num_groups);
-
-    for (size_t g = 0; g < num_groups; ++g) {
-        groups.emplace_back(result_scheme, false);
-    }
+    Batch current(result_scheme, false);
 
     for (const auto &[key, group_id] : result_) {
-        Batch &b = groups[group_id];
+        if (!current.EnableToPush()) {
+            result.emplace_back(std::move(current));
+            current = Batch(result_scheme, false);
+        }
 
-        WriteKeyToResult(b, key, task_, scheme_);
+        WriteKeyToResult(current, key, task_, scheme_);
 
         for (size_t i = 0; i < ans_.size(); ++i) {
             std::visit(
                 [&](auto &vec) {
-                    WriteAggValueToResult(b, vec[group_id], task_.types_[i],
+                    WriteAggValueToResult(current, vec[group_id],
+                                          task_.types_[i],
                                           task_.column_indices.size() + i);
                 },
                 ans_[i]);
         }
     }
 
-    for (auto &b : groups) {
-        if (!b.IsEmpty()) {
-            result.emplace_back(std::move(b));
-        }
+    if (!current.IsEmpty()) {
+        result.emplace_back(std::move(current));
     }
 
     return result;
@@ -2021,12 +1997,12 @@ void SelectAnswer::Execute(Batch &batch) {
         }
     }
 
-    std::unordered_set<size_t> selected_columns(column_indices_.begin(),
-                                                column_indices_.end());
+    FlatSet<size_t> selected_columns(column_indices_.begin(),
+                                     column_indices_.end());
     for (size_t column_index = batch.HorizontalSize(); column_index > 0;
          --column_index) {
         const size_t current = column_index - 1;
-        if (!selected_columns.contains(current)) {
+        if (selected_columns.find(current) == selected_columns.end()) {
             batch.RemoveColumn(current);
         }
     }

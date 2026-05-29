@@ -7,6 +7,7 @@ apt-get install -y --no-install-recommends \
     clang \
     libc++-dev \
     libc++abi-dev \
+    libboost-dev \
     cmake \
     ninja-build \
     make \
