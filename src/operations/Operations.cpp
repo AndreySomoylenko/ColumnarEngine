@@ -1206,7 +1206,9 @@ std::vector<Batch> TopK::Finalize() && {
 }
 
 GroupBy::GroupBy(GroupByTask &&task, const Scheme &scheme)
-    : task_(std::move(task)), scheme_(scheme) {}
+    : task_(std::move(task)), scheme_(scheme) {
+    ans_.resize(task_.agg_column_indices.size());
+}
 
 GroupAggTask MakeGroupAgg(AggType type, size_t column_index) {
     return GroupAggTask{type, column_index};
@@ -1246,10 +1248,6 @@ GroupByTask MakeGroupByTask(std::vector<size_t> &&group_column_indices,
     for (const auto &aggregation : aggregations) {
         task.types_.emplace_back(aggregation.type);
         task.agg_column_indices.emplace_back(aggregation.column_index);
-    }
-
-    if (!task.agg_column_indices.empty()) {
-        task.agg_column_index = task.agg_column_indices.front();
     }
 
     return task;
@@ -1457,11 +1455,7 @@ void UpdateDistinctForGroupBy(ResultAggVariant &result,
 }
 
 size_t GetAggColumnIndex(const GroupByTask &task, size_t agg_index) {
-    if (!task.agg_column_indices.empty()) {
-        return task.agg_column_indices.at(agg_index);
-    }
-
-    return task.agg_column_index;
+    return task.agg_column_indices.at(agg_index);
 }
 
 void UpdateSingleAggValue(size_t row_index, ResultAggVariant &current,
@@ -1501,12 +1495,18 @@ void UpdateSingleAggValue(size_t row_index, ResultAggVariant &current,
     }
 }
 
-void UpdateKeyValue(
-    size_t row_index,
-    std::unordered_map<std::string, std::vector<ResultAggVariant>> &result,
-    const GroupByTask &task, const Batch &batch) {
+void UpdateKeyValue(size_t row_index,
+                    std::unordered_map<std::string, size_t> &result,
+                    const GroupByTask &task, const Batch &batch,
+                    std::vector<std::vector<ResultAggVariant>> &ans,
+                    size_t &c) {
     auto key = BuildKey(batch, task.column_indices, row_index);
-    auto &current = result[key];
+
+    if (!result.count(key)) {
+        result[key] = c++;
+        ans.emplace_back();
+    }
+    auto &current = ans[result[key]];
 
     if (current.empty()) {
         current.resize(task.types_.size());
@@ -1538,13 +1538,13 @@ void GroupBy::Process(const Batch &batch) {
     auto enabled = batch.GetEnabledRaws();
     if (enabled.has_value()) {
         for (auto &ind : enabled.value()) {
-            UpdateKeyValue(ind, result_, task_, batch);
+            UpdateKeyValue(ind, result_, task_, batch, ans_, c_);
         }
         return;
     }
 
     for (size_t i = 0; i < batch.VerticalSize(); ++i) {
-        UpdateKeyValue(i, result_, task_, batch);
+        UpdateKeyValue(i, result_, task_, batch, ans_, c_);
     }
 }
 
@@ -1714,8 +1714,8 @@ std::vector<Batch> GroupBy::Finalize() && {
         }
 
         WriteKeyToResult(current, key, task_, scheme_);
-        for (size_t i = 0; i < values.size(); ++i) {
-            WriteAggValueToResult(current, values[i], task_.types_[i],
+        for (size_t i = 0; i < ans_[values].size(); ++i) {
+            WriteAggValueToResult(current, ans_[values][i], task_.types_[i],
                                   task_.column_indices.size() + i);
         }
     }

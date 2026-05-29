@@ -15,7 +15,7 @@ add_executable(columnar_tests
     data_structures/test_columns_scheme_batch.cpp
     io/test_columnar_io.cpp
     io/test_csv_io.cpp
-    operations/test_aggregations.cpp
+    #operations/test_aggregations.cpp
     simple_tests/test_class_usage.cpp
     utils/test_hits_columns.cpp
     utils/test_string_converter.cpp

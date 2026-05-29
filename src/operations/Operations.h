@@ -208,7 +208,6 @@ GroupAggTask MakeGroupAvg(size_t column_index);
 struct GroupByTask {
     std::vector<AggType> types_;
     std::vector<size_t> column_indices;
-    size_t agg_column_index = 0;
     std::vector<size_t> agg_column_indices;
 };
 
@@ -224,9 +223,11 @@ class GroupBy : public BlockingOperation {
     std::vector<Batch> Finalize() && override;
 
   private:
-    std::unordered_map<std::string, std::vector<ResultAggVariant>> result_;
+    std::unordered_map<std::string, size_t> result_;
+    std::vector<std::vector<ResultAggVariant>> ans_;
     GroupByTask task_;
     Scheme scheme_;
+    size_t c_ = 0;
 };
 
 GroupBy MakeGroupBy(GroupByTask &&task, const Scheme &scheme);
