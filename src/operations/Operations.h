@@ -105,7 +105,7 @@ FilterTask MakeInt64LessFilter(size_t column_index, int64_t bound);
 FilterTask MakeInt64LessOrEqualFilter(size_t column_index, int64_t bound);
 FilterTask MakeInt64GreaterFilter(size_t column_index, int64_t bound);
 FilterTask MakeInt64GreaterOrEqualFilter(size_t column_index, int64_t bound);
-FilterTask MakeInt64InFilter(size_t column_index, FlatSet<int64_t> values);
+FilterTask MakeInt64InFilter(size_t column_index, HashFlatSet<int64_t> values);
 FilterTask MakeStringFilter(size_t column_index,
                             std::function<bool(std::string_view)> condition);
 FilterTask MakeStringEqualFilter(size_t column_index, std::string expected);

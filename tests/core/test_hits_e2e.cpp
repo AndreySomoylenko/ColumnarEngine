@@ -58,9 +58,18 @@ std::vector<int64_t> ReadReferenceTimes(const std::filesystem::path &path) {
     Row row;
     while (!reader.IsEnd()) {
         reader.ReadNext(row);
-        if (row.size() >= 2 && !row[1].empty() &&
+        if (row.size() < 2 || row[0].empty() ||
+            !std::isdigit(static_cast<unsigned char>(row[0][0]))) {
+            continue;
+        }
+
+        const size_t query_index = static_cast<size_t>(std::stoull(row[0]));
+        if (times.size() <= query_index) {
+            times.resize(query_index + 1, 0);
+        }
+        if (!row[1].empty() &&
             std::isdigit(static_cast<unsigned char>(row[1][0]))) {
-            times.push_back(std::stoll(row[1]));
+            times[query_index] = std::stoll(row[1]);
         }
     }
     return times;

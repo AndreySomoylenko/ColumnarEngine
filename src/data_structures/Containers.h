@@ -28,4 +28,4 @@ using FlatSet = boost::container::flat_set<Key, Compare>;
 template <typename Key, typename Compare = std::less<Key>>
 using FlatMultiSet = boost::container::flat_multiset<Key, Compare>;
 
-using EnabledRaws = std::optional<FlatSet<size_t>>;
+using EnabledRaws = std::optional<HashFlatSet<size_t>>;

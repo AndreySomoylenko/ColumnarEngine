@@ -926,7 +926,7 @@ FilterTask MakeInt64GreaterOrEqualFilter(size_t column_index, int64_t bound) {
                            [bound](int64_t value) { return value >= bound; });
 }
 
-FilterTask MakeInt64InFilter(size_t column_index, FlatSet<int64_t> values) {
+FilterTask MakeInt64InFilter(size_t column_index, HashFlatSet<int64_t> values) {
     return MakeInt64Filter(column_index,
                            [values = std::move(values)](int64_t value) {
                                return values.find(value) != values.end();
@@ -1028,7 +1028,7 @@ void Filter::Execute(Batch &batch) {
     auto &enabled = batch.GetEnabledRaws();
     for (auto &task : conditions_) {
         if (!enabled.has_value()) {
-            enabled = FlatSet<size_t>{};
+            enabled = HashFlatSet<size_t>{};
             enabled->reserve(batch.VerticalSize());
             for (size_t ind = 0; ind < batch.VerticalSize(); ++ind) {
                 if (CheckFilterCondition(batch, task, ind)) {
@@ -1038,7 +1038,7 @@ void Filter::Execute(Batch &batch) {
         } else {
             for (auto it = enabled->begin(); it != enabled->end();) {
                 if (!CheckFilterCondition(batch, task, *it)) {
-                    it = enabled->erase(it);
+                    enabled->erase(it++);
                 } else {
                     ++it;
                 }

@@ -102,7 +102,7 @@ TEST(AggregationTest, EmptyColumnThrowsForMinMaxAndAvg) {
 
 TEST(AggregationTest, AvgThrowsForEmptyEnabledSelection) {
     auto column = MakeIntColumn({"1", "2"});
-    EnabledRaws selected = FlatSet<size_t>{};
+    EnabledRaws selected = HashFlatSet<size_t>{};
 
     EXPECT_THROW((void)agg::Avg<__int128>(column, selected),
                  std::invalid_argument);
@@ -111,7 +111,7 @@ TEST(AggregationTest, AvgThrowsForEmptyEnabledSelection) {
 TEST(AggregationTest, MinMaxThrowForEmptyEnabledSelection) {
     auto int_column = MakeIntColumn({"1", "2"});
     auto str_column = MakeStringColumn({"a", "b"});
-    EnabledRaws selected = FlatSet<size_t>{};
+    EnabledRaws selected = HashFlatSet<size_t>{};
 
     EXPECT_THROW((void)agg::Min<int64_t>(int_column, selected),
                  std::invalid_argument);
