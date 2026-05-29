@@ -5,9 +5,26 @@ QUERY="$1"
 export COLUMNAR="${COLUMNAR:-$2}"
 OUTPUT="$3"
 LOGS="$4"
+OUTPUT_DIR="$(dirname "$OUTPUT")"
+LOGS_DIR="$(dirname "$LOGS")"
+RESULTS_CSV="$OUTPUT_DIR/result.csv"
+RESULTS_LOCK="$OUTPUT_DIR/.result_csv.lock"
 
-mkdir -p "$(dirname "$OUTPUT")"
-mkdir -p "$(dirname "$LOGS")"
+mkdir -p "$OUTPUT_DIR"
+mkdir -p "$LOGS_DIR"
+
+append_result() {
+    while ! mkdir "$RESULTS_LOCK" 2>/dev/null; do
+        sleep 0.05
+    done
+
+    if [[ ! -f "$RESULTS_CSV" ]]; then
+        echo "query,elapsed_ms" > "$RESULTS_CSV"
+    fi
+    echo "$QUERY,$ELAPSED_MS" >> "$RESULTS_CSV"
+
+    rmdir "$RESULTS_LOCK"
+}
 
 WORKDIR="$(mktemp -d)"
 trap 'rm -rf "$WORKDIR"' EXIT
@@ -23,6 +40,7 @@ START_NS=$(date +%s%N)
 END_NS=$(date +%s%N)
 
 ELAPSED_MS=$(((END_NS - START_NS) / 1000000))
+append_result
 
 QUERY_FILE="$(printf 'query%02d.csv' "$((QUERY + 1))")"
 
