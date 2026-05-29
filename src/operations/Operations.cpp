@@ -1207,7 +1207,98 @@ std::vector<Batch> TopK::Finalize() && {
 
 GroupBy::GroupBy(GroupByTask &&task, const Scheme &scheme)
     : task_(std::move(task)), scheme_(scheme) {
-    ans_.resize(task_.agg_column_indices.size());
+    ans_.resize(task_.types_.size());
+
+    const auto &scheme_types = scheme_.GetSchemeTypes();
+
+    for (size_t i = 0; i < task_.types_.size(); ++i) {
+        const AggType agg_type = task_.types_[i];
+        const ColumnTypes col_type = scheme_types[task_.agg_column_indices[i]];
+
+        switch (agg_type) {
+        case AggType::Count:
+            ans_[i] = std::vector<uint64_t>{};
+            break;
+        case AggType::Sum:
+            if (col_type == ColumnTypes::Double) {
+                ans_[i] = std::vector<double>{};
+            } else {
+                ans_[i] = std::vector<__int128>{};
+            }
+            break;
+        case AggType::Avg:
+            if (col_type == ColumnTypes::Double) {
+                ans_[i] = std::vector<std::pair<double, size_t>>{};
+            } else {
+                ans_[i] = std::vector<std::pair<__int128, size_t>>{};
+            }
+            break;
+        case AggType::Min:
+        case AggType::Max:
+            switch (col_type) {
+            case ColumnTypes::Int16:
+                ans_[i] = std::vector<int16_t>{};
+                break;
+            case ColumnTypes::Int32:
+                ans_[i] = std::vector<int32_t>{};
+                break;
+            case ColumnTypes::Int64:
+                ans_[i] = std::vector<int64_t>{};
+                break;
+            case ColumnTypes::Int128:
+                ans_[i] = std::vector<__int128>{};
+                break;
+            case ColumnTypes::Double:
+                ans_[i] = std::vector<double>{};
+                break;
+            case ColumnTypes::String:
+            case ColumnTypes::Unknown:
+                ans_[i] = std::vector<std::string>{};
+                break;
+            case ColumnTypes::Timestamp:
+            case ColumnTypes::Date:
+                ans_[i] = std::vector<std::chrono::system_clock::time_point>{};
+                break;
+            default:
+                throw std::invalid_argument(
+                    "Unsupported column type for min/max");
+            }
+            break;
+        case AggType::CountDistinct:
+            switch (col_type) {
+            case ColumnTypes::Int16:
+                ans_[i] = std::vector<std::unordered_set<int16_t>>{};
+                break;
+            case ColumnTypes::Int32:
+                ans_[i] = std::vector<std::unordered_set<int32_t>>{};
+                break;
+            case ColumnTypes::Int64:
+                ans_[i] = std::vector<std::unordered_set<int64_t>>{};
+                break;
+            case ColumnTypes::Int128:
+                ans_[i] = std::vector<std::unordered_set<__int128>>{};
+                break;
+            case ColumnTypes::Double:
+                ans_[i] = std::vector<std::unordered_set<double>>{};
+                break;
+            case ColumnTypes::Timestamp:
+            case ColumnTypes::Date:
+                ans_[i] = std::vector<std::unordered_set<
+                    std::chrono::system_clock::time_point, TimePointHash>>{};
+                break;
+            case ColumnTypes::String:
+            case ColumnTypes::Unknown:
+                ans_[i] = std::vector<std::unordered_set<std::string>>{};
+                break;
+            default:
+                throw std::invalid_argument(
+                    "Unsupported column type for count distinct");
+            }
+            break;
+        default:
+            throw std::invalid_argument("Unsupported aggregation type");
+        }
+    }
 }
 
 GroupAggTask MakeGroupAgg(AggType type, size_t column_index) {
@@ -1498,23 +1589,37 @@ void UpdateSingleAggValue(size_t row_index, ResultAggVariant &current,
 void UpdateKeyValue(size_t row_index,
                     std::unordered_map<std::string, size_t> &result,
                     const GroupByTask &task, const Batch &batch,
-                    std::vector<std::vector<ResultAggVariant>> &ans,
-                    size_t &c) {
+                    std::vector<ResultAggGroupByVariant> &ans, size_t &c) {
     auto key = BuildKey(batch, task.column_indices, row_index);
 
-    if (!result.count(key)) {
-        result[key] = c++;
-        ans.emplace_back();
-    }
-    auto &current = ans[result[key]];
+    size_t group_id;
 
-    if (current.empty()) {
-        current.resize(task.types_.size());
+    if (!result.count(key)) {
+        group_id = c++;
+        result[key] = group_id;
+
+        for (auto &agg_vec_variant : ans) {
+            std::visit(
+                [&](auto &vec) {
+                    using T = typename std::decay_t<decltype(vec)>::value_type;
+                    vec.emplace_back(T{});
+                },
+                agg_vec_variant);
+        }
+    } else {
+        group_id = result[key];
     }
 
     for (size_t i = 0; i < task.types_.size(); ++i) {
-        UpdateSingleAggValue(row_index, current[i], task.types_[i],
-                             GetAggColumnIndex(task, i), batch);
+        std::visit(
+            [&](auto &vec) {
+                using T = typename std::decay_t<decltype(vec)>::value_type;
+                ResultAggVariant tmp = std::move(vec[group_id]);
+                UpdateSingleAggValue(row_index, tmp, task.types_[i],
+                                     GetAggColumnIndex(task, i), batch);
+                vec[group_id] = std::get<T>(std::move(tmp));
+            },
+            ans[i]);
     }
 }
 
@@ -1705,28 +1810,44 @@ Scheme BuildGroupByResultScheme(const GroupByTask &task,
 std::vector<Batch> GroupBy::Finalize() && {
     Scheme result_scheme = BuildGroupByResultScheme(task_, scheme_);
     std::vector<Batch> result;
-    Batch current(result_scheme, false);
 
-    for (const auto &[key, values] : result_) {
-        if (!current.EnableToPush()) {
-            result.emplace_back(std::move(current));
-            current = Batch(result_scheme, false);
-        }
+    if (ans_.empty()) {
+        return result;
+    }
 
-        WriteKeyToResult(current, key, task_, scheme_);
-        for (size_t i = 0; i < ans_[values].size(); ++i) {
-            WriteAggValueToResult(current, ans_[values][i], task_.types_[i],
-                                  task_.column_indices.size() + i);
+    size_t num_groups =
+        std::visit([](auto &vec) { return vec.size(); }, ans_[0]);
+
+    std::vector<Batch> groups;
+    groups.reserve(num_groups);
+
+    for (size_t g = 0; g < num_groups; ++g) {
+        groups.emplace_back(result_scheme, false);
+    }
+
+    for (const auto &[key, group_id] : result_) {
+        Batch &b = groups[group_id];
+
+        WriteKeyToResult(b, key, task_, scheme_);
+
+        for (size_t i = 0; i < ans_.size(); ++i) {
+            std::visit(
+                [&](auto &vec) {
+                    WriteAggValueToResult(b, vec[group_id], task_.types_[i],
+                                          task_.column_indices.size() + i);
+                },
+                ans_[i]);
         }
     }
 
-    if (!current.IsEmpty()) {
-        result.emplace_back(std::move(current));
+    for (auto &b : groups) {
+        if (!b.IsEmpty()) {
+            result.emplace_back(std::move(b));
+        }
     }
 
     return result;
 }
-
 Offset::Offset(size_t offset) : offset_(offset) {}
 
 Offset MakeOffset(size_t offset) { return Offset(offset); }

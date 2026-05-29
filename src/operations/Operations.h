@@ -216,6 +216,22 @@ GroupByTask MakeGroupByTask(std::vector<size_t> &&group_column_indices,
 GroupByTask MakeGroupByTask(std::vector<size_t> &&group_column_indices,
                             AggType agg_type, size_t agg_column_index);
 
+using ResultAggGroupByVariant = std::variant<
+    std::vector<std::monostate>, std::vector<__int128>, std::vector<int16_t>,
+    std::vector<int32_t>, std::vector<int64_t>, std::vector<uint64_t>,
+    std::vector<std::string>, std::vector<double>,
+    std::vector<std::chrono::system_clock::time_point>,
+    std::vector<std::pair<__int128, size_t>>,
+    std::vector<std::pair<double, size_t>>,
+    std::vector<std::unordered_set<__int128>>,
+    std::vector<std::unordered_set<double>>,
+    std::vector<std::unordered_set<std::chrono::system_clock::time_point,
+                                   TimePointHash>>,
+    std::vector<std::unordered_set<int16_t>>,
+    std::vector<std::unordered_set<int32_t>>,
+    std::vector<std::unordered_set<int64_t>>,
+    std::vector<std::unordered_set<std::string>>>;
+
 class GroupBy : public BlockingOperation {
   public:
     GroupBy(GroupByTask &&task, const Scheme &scheme);
@@ -224,7 +240,7 @@ class GroupBy : public BlockingOperation {
 
   private:
     std::unordered_map<std::string, size_t> result_;
-    std::vector<std::vector<ResultAggVariant>> ans_;
+    std::vector<ResultAggGroupByVariant> ans_;
     GroupByTask task_;
     Scheme scheme_;
     size_t c_ = 0;

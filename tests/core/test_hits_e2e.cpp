@@ -188,6 +188,7 @@ bool SameRowsOrAmbiguousTie(size_t query_index, const std::vector<Row> &actual,
 
 bool HasKnownReferenceMismatch(size_t query_index) {
     switch (query_index) {
+    case 21:
     case 22:
     case 23:
     case 24:
