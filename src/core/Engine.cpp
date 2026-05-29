@@ -857,6 +857,8 @@ void Engine::Make33Querry() {
                                     {MakeGroupCount(), MakeGroupSum(is_refresh),
                                      MakeGroupAvg(width)}),
                     projection.ReadScheme())));
+    operations.emplace_back(std::make_unique<TopK>(
+        MakeTopK({MakeDescendingSortKey(2)}, 10, result_scheme)));
     Pipeline pipeline(std::move(operations), reader_, projection.ReadScheme(),
                       "query33.csv");
     Execute(pipeline);
