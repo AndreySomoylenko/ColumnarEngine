@@ -35,10 +35,44 @@ OwnedBuffer ReadBuffer(std::istream &is, size_t byte_count) {
     return buffer;
 }
 
-ByteVector ReadByteVector(std::istream &is, size_t element_count,
+void EnsureAvailable(const char *cursor, const char *end, size_t byte_count) {
+    if (byte_count > static_cast<size_t>(end - cursor)) {
+        throw std::invalid_argument("You give me really bad file");
+    }
+}
+
+template <typename T> T ReadPod(const char *&cursor, const char *end) {
+    EnsureAvailable(cursor, end, sizeof(T));
+
+    T value;
+    std::memcpy(&value, cursor, sizeof(T));
+    cursor += sizeof(T);
+    return value;
+}
+
+ByteVector CopyByteVector(const char *data, size_t element_count,
                           size_t byte_count) {
-    OwnedBuffer buffer = ReadBuffer(is, byte_count);
-    return ByteVector(element_count, byte_count, buffer.release());
+    void *buffer = nullptr;
+    if (byte_count > 0) {
+        buffer = std::malloc(byte_count);
+        if (buffer == nullptr) {
+            throw std::bad_alloc();
+        }
+        std::memcpy(buffer, data, byte_count);
+    }
+
+    return ByteVector(element_count, byte_count, buffer);
+}
+
+std::vector<uint8_t> ReadPackedBytes(const char *&cursor, const char *end) {
+    const size_t packed_size = ReadPod<size_t>(cursor, end);
+    EnsureAvailable(cursor, end, packed_size);
+
+    std::vector<uint8_t> result(
+        reinterpret_cast<const uint8_t *>(cursor),
+        reinterpret_cast<const uint8_t *>(cursor + packed_size));
+    cursor += packed_size;
+    return result;
 }
 
 } // namespace
@@ -137,10 +171,26 @@ Batch ColumnarReader::ReadNext(const Scheme &scheme,
     Batch result(scheme, false);
 
     const auto &types = data_.scheme.GetSchemeTypes();
+    const std::streampos batch_start = data_.columns_starts[cur_index][0];
+    const std::streampos batch_end =
+        cur_index + 1 == data_.batch_numbers
+            ? data_.meta_section_start
+            : data_.columns_starts[cur_index + 1][0];
+
+    const std::streamoff batch_size = batch_end - batch_start;
+    if (batch_size < 0) {
+        throw std::invalid_argument("You give me really bad file");
+    }
+
+    is_.seekg(batch_start, std::ios::beg);
+    OwnedBuffer batch_buffer =
+        ReadBuffer(is_, static_cast<size_t>(batch_size));
+    const char *batch_data = static_cast<const char *>(batch_buffer.get());
 
     for (size_t i = 0; i < columns_to_read.size(); ++i) {
         const size_t column_index = columns_to_read[i];
-        is_.seekg(data_.columns_starts[cur_index][column_index], std::ios::beg);
+        const std::streampos column_start =
+            data_.columns_starts[cur_index][column_index];
 
         std::streamoff column_size;
 
@@ -160,49 +210,48 @@ Batch ColumnarReader::ReadNext(const Scheme &scheme,
         if (column_size < 0) {
             throw std::invalid_argument("You give me really bad file");
         }
+        if (column_start < batch_start ||
+            column_start + column_size > batch_end) {
+            throw std::invalid_argument("You give me really bad file");
+        }
+
+        const char *column_data =
+            batch_data + static_cast<std::streamoff>(column_start - batch_start);
+        const char *cursor = column_data;
+        const char *column_end =
+            column_data + static_cast<size_t>(column_size);
 
         if (types[column_index] == ColumnTypes::Int16 ||
             types[column_index] == ColumnTypes::Int32 ||
             types[column_index] == ColumnTypes::Int64) {
 
             Compression::BitPackingMetaData meta;
-
-            is_.read(reinterpret_cast<char *>(&meta.bit_width),
-                     sizeof(meta.bit_width));
-
-            is_.read(reinterpret_cast<char *>(&meta.real_size),
-                     sizeof(meta.real_size));
-
-            size_t packed_size;
-
-            is_.read(reinterpret_cast<char *>(&packed_size),
-                     sizeof(packed_size));
-
-            std::vector<uint8_t> packed(packed_size);
-
-            is_.read(reinterpret_cast<char *>(packed.data()), packed_size);
+            meta.bit_width = ReadPod<uint8_t>(cursor, column_end);
+            meta.real_size = ReadPod<size_t>(cursor, column_end);
+            std::vector<uint8_t> packed = ReadPackedBytes(cursor, column_end);
 
             result.GetColumns()[i] = Compression::DecompressIntTypesBitPacking(
                 packed, meta, types[column_index]);
         } else if (types[column_index] == ColumnTypes::Int128) {
             size_t col_size = static_cast<size_t>(column_size);
-            ByteVector data =
-                ReadByteVector(is_, col_size / sizeof(__int128), col_size);
+            ByteVector data = CopyByteVector(
+                column_data, col_size / sizeof(__int128), col_size);
             result.GetColumns()[i] =
                 std::make_shared<Int128Column>(std::move(data));
 
         } else if (types[column_index] == ColumnTypes::Double) {
             size_t col_size = static_cast<size_t>(column_size);
             ByteVector data =
-                ReadByteVector(is_, col_size / sizeof(double), col_size);
+                CopyByteVector(column_data, col_size / sizeof(double), col_size);
             result.GetColumns()[i] =
                 std::make_shared<DoubleColumn>(std::move(data));
 
         } else if (types[column_index] == ColumnTypes::Timestamp ||
                    types[column_index] == ColumnTypes::Date) {
             size_t col_size = static_cast<size_t>(column_size);
-            ByteVector data = ReadByteVector(
-                is_, col_size / sizeof(std::chrono::system_clock::time_point),
+            ByteVector data = CopyByteVector(
+                column_data,
+                col_size / sizeof(std::chrono::system_clock::time_point),
                 col_size);
             result.GetColumns()[i] = std::make_shared<TimeColumn>(
                 std::move(data), types[column_index] == ColumnTypes::Date);
@@ -211,54 +260,28 @@ Batch ColumnarReader::ReadNext(const Scheme &scheme,
                    types[column_index] == ColumnTypes::Unknown) {
             Compression::DictStringMetaData meta;
 
-            if (!is_.read(reinterpret_cast<char *>(&meta.bit_width),
-                          sizeof(meta.bit_width))) {
-                throw std::invalid_argument("You give me really bad file");
-            }
+            meta.bit_width = ReadPod<uint8_t>(cursor, column_end);
+            meta.real_size = ReadPod<size_t>(cursor, column_end);
 
-            if (!is_.read(reinterpret_cast<char *>(&meta.real_size),
-                          sizeof(meta.real_size))) {
-                throw std::invalid_argument("You give me really bad file");
-            }
+            const size_t dict_size = ReadPod<size_t>(cursor, column_end);
+            EnsureAvailable(cursor, column_end, dict_size);
+            const char *dict_data = cursor;
+            cursor += dict_size;
 
-            size_t dict_size;
-            if (!is_.read(reinterpret_cast<char *>(&dict_size),
-                          sizeof(dict_size))) {
-                throw std::invalid_argument("You give me really bad file");
-            }
-
-            OwnedBuffer dict_buffer = ReadBuffer(is_, dict_size);
-
-            size_t offsets_size;
-            if (!is_.read(reinterpret_cast<char *>(&offsets_size),
-                          sizeof(offsets_size))) {
-                throw std::invalid_argument("You give me really bad file");
-            }
+            const size_t offsets_size = ReadPod<size_t>(cursor, column_end);
 
             if (offsets_size % sizeof(size_t) != 0) {
                 throw std::invalid_argument("You give me really bad file");
             }
 
             meta.offsets.resize(offsets_size / sizeof(size_t));
-            if (!is_.read(reinterpret_cast<char *>(meta.offsets.data()),
-                          offsets_size)) {
-                throw std::invalid_argument("You give me really bad file");
-            }
+            EnsureAvailable(cursor, column_end, offsets_size);
+            std::memcpy(meta.offsets.data(), cursor, offsets_size);
+            cursor += offsets_size;
 
-            meta.dict = ByteVector(meta.offsets.size(), dict_size,
-                                   dict_buffer.release());
-
-            size_t value_size;
-            if (!is_.read(reinterpret_cast<char *>(&value_size),
-                          sizeof(value_size))) {
-                throw std::invalid_argument("You give me really bad file");
-            }
-
-            std::vector<uint8_t> packed(value_size);
-            if (!is_.read(reinterpret_cast<char *>(packed.data()),
-                          value_size)) {
-                throw std::invalid_argument("You give me really bad file");
-            }
+            meta.dict =
+                CopyByteVector(dict_data, meta.offsets.size(), dict_size);
+            std::vector<uint8_t> packed = ReadPackedBytes(cursor, column_end);
 
             result.GetColumns()[i] =
                 Compression::DecompressStringFromDict(packed, meta);
