@@ -4,14 +4,18 @@
 #include "data_structures/MetaData.h"
 #include "data_structures/Scheme.h"
 
-#include <fstream>
+#include <cstddef>
+#include <string>
 #include <vector>
 
 class ColumnarReader {
   public:
     ColumnarReader() = default;
     explicit ColumnarReader(const std::string &columnar);
-    ColumnarReader &operator=(ColumnarReader &&other) = default;
+    ColumnarReader(const ColumnarReader &) = delete;
+    ColumnarReader &operator=(const ColumnarReader &) = delete;
+    ColumnarReader(ColumnarReader &&other) noexcept;
+    ColumnarReader &operator=(ColumnarReader &&other) noexcept;
     std::vector<size_t> GetColumnIndices(const Scheme &scheme) const;
     Batch ReadNext(const Scheme &scheme,
                    const std::vector<size_t> &columns_to_read,
@@ -23,7 +27,10 @@ class ColumnarReader {
     ~ColumnarReader();
 
   private:
-    std::ifstream is_;
+    void Close();
 
     MetaData data_;
+    int fd_ = -1;
+    const char *mapped_data_ = nullptr;
+    size_t mapped_size_ = 0;
 };
