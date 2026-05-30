@@ -72,7 +72,7 @@ ColumnarReader::ColumnarReader(const std::string &columnar) {
         throw std::invalid_argument("You give me really bad file");
     }
     mapped_data_ = static_cast<const char *>(mapping);
-    ::madvise(const_cast<char *>(mapped_data_), mapped_size_, MADV_SEQUENTIAL);
+    // ::madvise(const_cast<char *>(mapped_data_), mapped_size_, MADV_SEQUENTIAL);
 
     const char *cursor = mapped_data_;
     const char *file_end = mapped_data_ + mapped_size_;
