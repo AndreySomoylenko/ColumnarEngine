@@ -170,6 +170,11 @@ Batch ColumnarReader::ReadNext(const Scheme &scheme,
 
     Batch result(scheme, false);
 
+    if (columns_to_read.empty()) {
+        ++cur_index;
+        return result;
+    }
+
     const auto &types = data_.scheme.GetSchemeTypes();
     const std::streampos batch_start = data_.columns_starts[cur_index][0];
     const std::streampos batch_end =
@@ -177,21 +182,7 @@ Batch ColumnarReader::ReadNext(const Scheme &scheme,
             ? data_.meta_section_start
             : data_.columns_starts[cur_index + 1][0];
 
-    const std::streamoff batch_size = batch_end - batch_start;
-    if (batch_size < 0) {
-        throw std::invalid_argument("You give me really bad file");
-    }
-
-    is_.seekg(batch_start, std::ios::beg);
-    OwnedBuffer batch_buffer =
-        ReadBuffer(is_, static_cast<size_t>(batch_size));
-    const char *batch_data = static_cast<const char *>(batch_buffer.get());
-
-    for (size_t i = 0; i < columns_to_read.size(); ++i) {
-        const size_t column_index = columns_to_read[i];
-        const std::streampos column_start =
-            data_.columns_starts[cur_index][column_index];
-
+    const auto ColumnSize = [&](size_t column_index) {
         std::streamoff column_size;
 
         if (column_index + 1 == columns_count) {
@@ -210,13 +201,50 @@ Batch ColumnarReader::ReadNext(const Scheme &scheme,
         if (column_size < 0) {
             throw std::invalid_argument("You give me really bad file");
         }
-        if (column_start < batch_start ||
-            column_start + column_size > batch_end) {
+        return column_size;
+    };
+
+    size_t min_column = columns_to_read.front();
+    size_t max_column = columns_to_read.front();
+    for (size_t column_index : columns_to_read) {
+        if (column_index < min_column) {
+            min_column = column_index;
+        }
+        if (column_index > max_column) {
+            max_column = column_index;
+        }
+    }
+
+    const std::streampos read_start =
+        data_.columns_starts[cur_index][min_column];
+    const std::streampos read_end =
+        data_.columns_starts[cur_index][max_column] + ColumnSize(max_column);
+    if (read_start < batch_start || read_end > batch_end ||
+        read_end < read_start) {
+        throw std::invalid_argument("You give me really bad file");
+    }
+
+    const std::streamoff read_size = read_end - read_start;
+    is_.seekg(read_start, std::ios::beg);
+    OwnedBuffer read_buffer =
+        ReadBuffer(is_, static_cast<size_t>(read_size));
+    const char *read_data = static_cast<const char *>(read_buffer.get());
+
+    for (size_t i = 0; i < columns_to_read.size(); ++i) {
+        const size_t column_index = columns_to_read[i];
+        const std::streampos column_start =
+            data_.columns_starts[cur_index][column_index];
+        const std::streamoff column_size = ColumnSize(column_index);
+
+        if (column_size < 0) {
+            throw std::invalid_argument("You give me really bad file");
+        }
+        if (column_start < read_start || column_start + column_size > read_end) {
             throw std::invalid_argument("You give me really bad file");
         }
 
         const char *column_data =
-            batch_data + static_cast<std::streamoff>(column_start - batch_start);
+            read_data + static_cast<std::streamoff>(column_start - read_start);
         const char *cursor = column_data;
         const char *column_end =
             column_data + static_cast<size_t>(column_size);
