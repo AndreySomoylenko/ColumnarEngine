@@ -13,8 +13,8 @@ class Scheme {
   private:
     std::vector<std::string> column_names;
     std::vector<ColumnTypes> column_types;
-    FlatMap<std::string, size_t> name_to_index;
-    FlatMap<std::string, ColumnTypes> name_to_type;
+    HashFlatMap<std::string, size_t> name_to_index;
+    HashFlatMap<std::string, ColumnTypes> name_to_type;
 
   public:
     void Add(const Row &str);
