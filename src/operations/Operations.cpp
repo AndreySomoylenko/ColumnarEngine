@@ -742,8 +742,8 @@ void Aggregation::Process(const Batch &batch) {
         const auto &task = tasks_[i];
         ColumnTypes column_type =
             batch.GetColumn(task.column_index)->GetColumnType();
-        auto column = batch.GetColumn(task.column_index);
-        auto enabled = batch.GetEnabledRaws();
+        const auto &column = batch.GetColumn(task.column_index);
+        const auto &enabled = batch.GetEnabledRaws();
         column_active_size_[i] +=
             (enabled.has_value() ? enabled->size() : column->Size());
         switch (task.agg_type) {
@@ -1501,23 +1501,23 @@ void UpdateSingleAggValue(size_t row_index, ResultAggVariant &current,
         }
         return;
     case AggType::Sum: {
-        auto column = batch.GetColumn(agg_column_index);
+        const auto &column = batch.GetColumn(agg_column_index);
         UpdateSumForGroupBy(current, column, row_index);
         return;
     }
     case AggType::Avg: {
-        auto column = batch.GetColumn(agg_column_index);
+        const auto &column = batch.GetColumn(agg_column_index);
         UpdateAvgForGroupBy(current, column, row_index);
         return;
     }
     case AggType::Min:
     case AggType::Max: {
-        auto column = batch.GetColumn(agg_column_index);
+        const auto &column = batch.GetColumn(agg_column_index);
         UpdateExtremeValue(current, column, row_index, agg_type);
         return;
     }
     case AggType::CountDistinct: {
-        auto column = batch.GetColumn(agg_column_index);
+        const auto &column = batch.GetColumn(agg_column_index);
         UpdateDistinctForGroupBy(current, column, row_index);
         return;
     }
@@ -1568,7 +1568,7 @@ std::string BuildKey(const Batch &batch,
                      const std::vector<size_t> &column_indices, size_t index) {
     std::string result;
     for (auto &ind : column_indices) {
-        auto column = batch.GetColumns()[ind];
+        const auto &column = batch.GetColumns()[ind];
         auto value = column->Get(index);
         if (IsStringType(column->GetColumnType())) {
             result.append(reinterpret_cast<const char *>(&value.size),
@@ -1581,7 +1581,7 @@ std::string BuildKey(const Batch &batch,
 }
 
 void GroupBy::Process(const Batch &batch) {
-    auto enabled = batch.GetEnabledRaws();
+    const auto &enabled = batch.GetEnabledRaws();
     if (enabled.has_value()) {
         for (auto &ind : enabled.value()) {
             UpdateKeyValue(ind, result_, task_, batch, ans_);

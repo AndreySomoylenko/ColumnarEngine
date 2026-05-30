@@ -169,7 +169,7 @@ const std::shared_ptr<Column> &Batch::GetColumn(const size_t index) const {
 
 const Scheme &Batch::GetScheme() const { return scheme_; }
 
-const std::vector<std::shared_ptr<Column>>
+std::vector<std::shared_ptr<Column>>
 Batch::GetRowLikeColumnVector(const size_t index) const {
     std::vector<std::shared_ptr<Column>> result;
     for (size_t i = 0; i < HorizontalSize(); ++i) {

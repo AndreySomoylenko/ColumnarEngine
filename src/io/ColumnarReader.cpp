@@ -129,7 +129,7 @@ Batch ColumnarReader::ReadNext(const Scheme &scheme, size_t &cur_index) {
 
     Batch result(scheme, false);
 
-    auto types = data_.scheme.GetSchemeTypes();
+    const auto &types = data_.scheme.GetSchemeTypes();
 
     for (size_t i = 0; i < columns_to_read.size(); ++i) {
         const size_t column_index = columns_to_read[i];

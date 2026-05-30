@@ -100,8 +100,8 @@ void ColumnarWriter::Close(const Scheme &scheme) && {
         }
     }
 
-    auto names = scheme.GetSchemeNames();
-    auto types = scheme.GetSchemeTypes();
+    const auto &names = scheme.GetSchemeNames();
+    const auto &types = scheme.GetSchemeTypes();
 
     for (size_t i = 0; i < names.size(); ++i) {
         size_t name_sz = names[i].size();

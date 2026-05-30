@@ -10,7 +10,7 @@ Batch VectorScanner::ReadNext() {
     if (IsEnd()) {
         throw std::out_of_range("No more batches to read");
     }
-    return batches_[cur_index_++];
+    return std::move(batches_[cur_index_++]);
 }
 
 bool VectorScanner::IsEnd() const { return cur_index_ >= batches_.size(); }
