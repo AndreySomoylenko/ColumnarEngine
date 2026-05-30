@@ -24,14 +24,6 @@ Scheme MakeScheme(std::initializer_list<Row> rows) {
     return scheme;
 }
 
-Scheme CopyScheme(const Scheme &scheme) {
-    Scheme result;
-    for (const Row &row : scheme.GiveRows()) {
-        result.Add(row);
-    }
-    return result;
-}
-
 } // namespace
 
 Engine::Engine(const Filename &data, const Filename &scheme,
@@ -630,7 +622,7 @@ void Engine::Make23Querry() {
 }
 
 void Engine::Make24Querry() {
-    Scheme read_scheme = CopyScheme(reader_.GetScheme());
+    Scheme read_scheme = reader_.GetScheme();
     std::vector<std::unique_ptr<Operation>> operations;
     operations.emplace_back(
         std::make_unique<Filter>(MakeFilter({MakeStringLikeFilter(
