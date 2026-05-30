@@ -116,16 +116,23 @@ ColumnarReader::ColumnarReader(const std::string &columnar) {
     is_.clear();
 }
 
-Batch ColumnarReader::ReadNext(const Scheme &scheme, size_t &cur_index) {
+std::vector<size_t> ColumnarReader::GetColumnIndices(const Scheme &scheme) const {
+    std::vector<size_t> columns_to_read;
+    columns_to_read.reserve(scheme.GetSchemeNames().size());
+    for (const auto &name : scheme.GetSchemeNames()) {
+        columns_to_read.push_back(data_.GetColumnIndexByName(name));
+    }
+    return columns_to_read;
+}
+
+Batch ColumnarReader::ReadNext(const Scheme &scheme,
+                               const std::vector<size_t> &columns_to_read,
+                               size_t &cur_index) {
     if (IsEnd(cur_index)) {
         throw std::out_of_range("No more data to read");
     }
 
-    std::vector<size_t> columns_to_read;
     size_t columns_count = data_.column_numbers;
-    for (auto &name : scheme.GetSchemeNames()) {
-        columns_to_read.push_back(data_.GetColumnIndexByName(name));
-    }
 
     Batch result(scheme, false);
 

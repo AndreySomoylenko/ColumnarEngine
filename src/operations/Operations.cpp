@@ -2003,12 +2003,11 @@ void SelectAnswer::Execute(Batch &batch) {
         }
     }
 
-    FlatSet<size_t> selected_columns(column_indices_.begin(),
-                                     column_indices_.end());
     for (size_t column_index = batch.HorizontalSize(); column_index > 0;
          --column_index) {
         const size_t current = column_index - 1;
-        if (selected_columns.find(current) == selected_columns.end()) {
+        if (!std::binary_search(column_indices_.begin(),
+                                column_indices_.end(), current)) {
             batch.RemoveColumn(current);
         }
     }

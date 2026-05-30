@@ -4,6 +4,8 @@
 #include "io/BatchScanner.h"
 #include "io/ColumnarReader.h"
 
+#include <vector>
+
 class IoScanner : public BatchScanner {
   public:
     IoScanner(const Scheme &scheme, ColumnarReader &reader);
@@ -13,6 +15,7 @@ class IoScanner : public BatchScanner {
 
   private:
     Scheme scheme_;
+    std::vector<size_t> columns_to_read_;
 
     ColumnarReader &reader_;
 };
