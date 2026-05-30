@@ -101,6 +101,7 @@ Row Batch::GetRow(const size_t index) const {
     }
 
     Row result;
+    result.reserve(HorizontalSize());
     for (size_t i = 0; i < HorizontalSize(); ++i) {
         result.emplace_back(columns_[i]->ToString(index));
     }
@@ -172,6 +173,7 @@ const Scheme &Batch::GetScheme() const { return scheme_; }
 std::vector<std::shared_ptr<Column>>
 Batch::GetRowLikeColumnVector(const size_t index) const {
     std::vector<std::shared_ptr<Column>> result;
+    result.reserve(HorizontalSize());
     for (size_t i = 0; i < HorizontalSize(); ++i) {
         const auto type = columns_[i]->GetColumnType();
         const auto element = columns_[i]->Get(index);

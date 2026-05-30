@@ -19,6 +19,8 @@ Compression::CompressDictFromString(
 
     int c = 0;
     HashFlatMap<std::string_view, size_t> indices;
+    indices.reserve(column->Size());
+    meta.offsets.reserve(column->Size());
     for (int i = 0; i < column->Size(); ++i) {
         const auto &[value, sz] = column->Get(i);
         if (!indices.count(std::string_view(value, sz))) {
