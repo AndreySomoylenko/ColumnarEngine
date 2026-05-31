@@ -21,7 +21,6 @@ ColumnarWriter::ColumnarWriter(const std::string &filename) {
 
 void ColumnarWriter::WriteChunk(const Batch &batch) {
     std::vector<std::streampos> columns_batch_starts;
-    columns_batch_starts.reserve(batch.HorizontalSize());
     ++batch_count;
 
     columns_batch_starts.emplace_back(os_.tellp());

@@ -163,6 +163,12 @@ double Avg(const std::shared_ptr<Column> &column,
 template <typename T, typename SetT>
 void CountDistinctAs(const std::shared_ptr<Column> &column, SetT &answer,
                      const EnabledRaws &selected = std::nullopt) {
+    const size_t incoming = selected.has_value() ? selected->size()
+                                                 : column->Size();
+    if constexpr (requires(SetT &set, size_t size) { set.reserve(size); }) {
+        answer.reserve(answer.size() + incoming);
+    }
+
     if (selected.has_value()) {
 
         for (size_t i : selected.value()) {
