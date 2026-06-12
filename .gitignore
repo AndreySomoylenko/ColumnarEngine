@@ -1,0 +1,13 @@
+build
+.cache
+compile_commands*.json
+format.sh
+*.csv
+*.hub
+*.py
+__pycache__/
+.DS_Store
+benchmark.sh
+Testing//Testing/Temporary/
+docs/
+docks/
